@@ -25,4 +25,12 @@ export default defineConfig({
             formVariants: true,
         }),
     ],
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks: undefined,
+            },
+        },
+        minify: false,
+    },
 });

@@ -37,9 +37,7 @@ class UpdateQuizRequest extends FormRequest
             'source_file' => ['nullable', 'string', 'max:255'],
             'quiz_code' => [
                 'nullable',
-                'string',
-                'size:6',
-                'alpha_num',
+                'digits:6',
                 Rule::unique('quizzes', 'quiz_code')->ignore($quizId),
             ],
             'max_attempts' => ['nullable', 'integer', 'min:1', 'max:100'],

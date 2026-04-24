@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Answer;
-use App\Models\Choice;
 use App\Models\Question;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
@@ -64,16 +63,19 @@ class QuizAttemptController extends Controller
 
     public function join(): Response
     {
-        return Inertia::render('Attempt/Join');
+        return Inertia::render('Attempt/Join', [
+            'quiz' => null,
+            'validatedCode' => null,
+        ]);
     }
 
-    public function resolveCode(Request $request): RedirectResponse
+    public function resolveCode(Request $request): Response|RedirectResponse
     {
         $data = $request->validate([
-            'quiz_code' => ['required', 'string', 'size:6', 'alpha_num'],
+            'quiz_code' => ['required', 'digits:6'],
         ]);
 
-        $code = strtoupper($data['quiz_code']);
+        $code = $data['quiz_code'];
 
         $quiz = Quiz::query()
             ->where('quiz_code', $code)
@@ -86,7 +88,14 @@ class QuizAttemptController extends Controller
                 ->withErrors(['quiz_code' => 'No active quiz found for that code.']);
         }
 
-        return $this->start($request, $quiz);
+        return Inertia::render('Attempt/Join', [
+            'quiz' => [
+                'id' => $quiz->id,
+                'title' => $quiz->title,
+                'questions_count' => $quiz->questions()->count(),
+            ],
+            'validatedCode' => $code,
+        ]);
     }
 
     public function start(Request $request, Quiz $quiz): RedirectResponse

@@ -55,7 +55,7 @@ const answers = reactive<Record<number, AnswerState>>(
 
 const current = computed(() => questions[currentIndex.value]);
 const progress = computed(() => (questions.length === 0 ? 0 : ((currentIndex.value + 1) / questions.length) * 100));
-const isLast = computed(() => currentIndex.value === questions.length - 1);
+const isLast = computed(() => questions.length === 0 || currentIndex.value === questions.length - 1);
 
 const answeredCount = computed(() =>
     questions.filter((q) => {
@@ -70,14 +70,14 @@ const answeredCount = computed(() =>
 const isSingleSelect = (question: TakeQuestion): boolean =>
     question.type === 'true_false' || question.correct_count === 1;
 
-const selectionLabel = (question: TakeQuestion): string | null => {
-    if (question.type !== 'multiple_choice') return null;
+const selectionLabel = (question: TakeQuestion | undefined): string | null => {
+    if (!question || question.type !== 'multiple_choice') return null;
     if (question.correct_count === 1) return 'Select one answer';
     return `Select up to ${question.correct_count}`;
 };
 
-const selectionProgress = (question: TakeQuestion): string | null => {
-    if (question.type !== 'multiple_choice' || question.correct_count <= 1) return null;
+const selectionProgress = (question: TakeQuestion | undefined): string | null => {
+    if (!question || question.type !== 'multiple_choice' || question.correct_count <= 1) return null;
     const selected = answers[question.id].choice_ids.length;
     return `${selected} of ${question.correct_count} selected`;
 };
@@ -192,7 +192,7 @@ const submit = (): void => {
             </button>
         </div>
 
-        <Card>
+        <Card v-if="current">
             <CardHeader>
                 <div class="flex flex-wrap items-center gap-2">
                     <Badge variant="outline">Question {{ currentIndex + 1 }} of {{ questions.length }}</Badge>
@@ -251,6 +251,12 @@ const submit = (): void => {
                         placeholder="Type your answer..."
                     />
                 </div>
+            </CardContent>
+        </Card>
+
+        <Card v-else>
+            <CardContent class="py-10 text-center text-sm text-muted-foreground">
+                This quiz has no questions.
             </CardContent>
         </Card>
 

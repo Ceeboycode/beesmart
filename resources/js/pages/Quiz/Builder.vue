@@ -1,12 +1,26 @@
 <script setup lang="ts">
 import { Link, router, useForm } from '@inertiajs/vue3';
-import { CheckCircle2, GripVertical, Plus, Trash2 } from 'lucide-vue-next';
+import {
+    AlertTriangle,
+    CheckCircle2,
+    ChevronLeft,
+    ChevronRight,
+    GripVertical,
+    Plus,
+    Trash2,
+} from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -65,7 +79,11 @@ const props = defineProps<{
             explanation: string | null;
             correct_answer: string[] | null;
             case_sensitive: boolean;
-            choices?: Array<{ id: number; choice_text: string; is_correct: boolean }>;
+            choices?: Array<{
+                id: number;
+                choice_text: string;
+                is_correct: boolean;
+            }>;
         }>;
     };
     submitUrl: string;
@@ -73,6 +91,8 @@ const props = defineProps<{
     submitLabel: string;
     regenerateUrl?: string;
 }>();
+
+const DEFAULT_QUESTION_COUNT = 5;
 
 const emptyMultiChoice = (): ChoiceInput[] => [
     { choice_text: '', is_correct: false },
@@ -96,20 +116,22 @@ const newQuestion = (): QuestionInput => ({
     choices: emptyMultiChoice(),
 });
 
-const initialQuestions: QuestionInput[] = (props.quiz?.questions ?? []).map((q) => ({
-    id: q.id,
-    question_text: q.question_text,
-    type: q.type,
-    points: q.points,
-    explanation: q.explanation ?? '',
-    correct_answer: q.correct_answer ?? [],
-    case_sensitive: q.case_sensitive ?? false,
-    choices: (q.choices ?? []).map((c) => ({
-        id: c.id,
-        choice_text: c.choice_text,
-        is_correct: c.is_correct,
-    })),
-}));
+const initialQuestions: QuestionInput[] = (props.quiz?.questions ?? []).map(
+    (q) => ({
+        id: q.id,
+        question_text: q.question_text,
+        type: q.type,
+        points: q.points,
+        explanation: q.explanation ?? '',
+        correct_answer: q.correct_answer ?? [],
+        case_sensitive: q.case_sensitive ?? false,
+        choices: (q.choices ?? []).map((c) => ({
+            id: c.id,
+            choice_text: c.choice_text,
+            is_correct: c.is_correct,
+        })),
+    }),
+);
 
 const form = useForm<QuizFormData>({
     title: props.quiz?.title ?? '',
@@ -117,16 +139,38 @@ const form = useForm<QuizFormData>({
     status: props.quiz?.status ?? 'active',
     quiz_code: props.quiz?.quiz_code ?? '',
     max_attempts: props.quiz?.max_attempts ?? null,
-    question_count: props.quiz?.question_count ?? 15,
-    questions: initialQuestions.length > 0 ? initialQuestions : Array.from({ length: 15 }, () => newQuestion()),
+    question_count: props.quiz?.question_count ?? DEFAULT_QUESTION_COUNT,
+    questions:
+        initialQuestions.length > 0
+            ? initialQuestions
+            : Array.from({ length: DEFAULT_QUESTION_COUNT }, () =>
+                  newQuestion(),
+              ),
 });
 
 const toast = useToast();
 
-// Confirm dialogs
+// Wizard
+const currentStep = ref(1);
+const TOTAL_STEPS = 3;
+// Edit mode unlocks all steps immediately; create mode unlocks as the user advances
+const highestStep = ref(props.quiz ? TOTAL_STEPS : 1);
+
+const steps = [
+    { number: 1, label: 'Setup', description: 'Basic quiz info' },
+    { number: 2, label: 'Questions', description: 'Build questions' },
+    { number: 3, label: 'Review', description: 'Check & submit' },
+];
+
+// Dialog states
 const saveDialogOpen = ref(false);
-const removeQuestionDialog = ref<{ open: boolean; index: number | null }>({ open: false, index: null });
+const removeQuestionDialog = ref<{ open: boolean; index: number | null }>({
+    open: false,
+    index: null,
+});
 const regenerateDialogOpen = ref(false);
+
+const step1Valid = computed(() => form.title.trim().length > 0);
 
 watch(
     () => props.quiz?.quiz_code,
@@ -137,7 +181,10 @@ watch(
     },
 );
 
-const totalPoints = computed(() => form.questions.reduce((sum, q) => sum + (Number(q.points) || 0), 0));
+const totalPoints = computed(() =>
+    form.questions.reduce((sum, q) => sum + (Number(q.points) || 0), 0),
+);
+
 const hasCorrectAnswers = computed(() =>
     form.questions.every((q) => {
         if (q.type === 'short_answer') {
@@ -146,21 +193,27 @@ const hasCorrectAnswers = computed(() =>
         return q.choices.some((c) => c.is_correct);
     }),
 );
-const questionsFilledIn = computed(() => form.questions.filter((q) => q.question_text.trim() !== '').length);
 
+const questionsFilledIn = computed(
+    () => form.questions.filter((q) => q.question_text.trim() !== '').length,
+);
+
+// Question operations
 const toggleCorrect = (question: QuestionInput, choiceIndex: number): void => {
     if (question.type === 'true_false') {
         const alreadyCorrect = question.choices[choiceIndex].is_correct;
-        question.choices.forEach((c) => { c.is_correct = false; });
+        question.choices.forEach((c) => {
+            c.is_correct = false;
+        });
         question.choices[choiceIndex].is_correct = !alreadyCorrect;
         return;
     }
     const willBeCorrect = !question.choices[choiceIndex].is_correct;
     if (willBeCorrect) {
-        const correctCount = question.choices.filter((c) => c.is_correct).length;
-        if (correctCount >= question.choices.length - 1) {
-            return;
-        }
+        const correctCount = question.choices.filter(
+            (c) => c.is_correct,
+        ).length;
+        if (correctCount >= question.choices.length - 1) return;
     }
     question.choices[choiceIndex].is_correct = willBeCorrect;
 };
@@ -233,6 +286,29 @@ const handleQuestionCountChange = (newCount: number | null): void => {
     form.question_count = count;
 };
 
+const nextStep = (): void => {
+    if (currentStep.value < TOTAL_STEPS) {
+        currentStep.value++;
+        if (currentStep.value > highestStep.value) {
+            highestStep.value = currentStep.value;
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+};
+
+const prevStep = (): void => {
+    if (currentStep.value > 1) {
+        currentStep.value--;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+};
+
+const goToStep = (step: number): void => {
+    if (step > highestStep.value) return;
+    currentStep.value = step;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
 const requestSave = (): void => {
     saveDialogOpen.value = true;
 };
@@ -243,7 +319,7 @@ const submit = (): void => {
 
     form.transform((data) => ({
         ...data,
-        quiz_code: data.quiz_code?.trim() ? data.quiz_code.trim().toUpperCase() : undefined,
+        quiz_code: data.quiz_code?.trim() ? data.quiz_code.trim() : undefined,
         max_attempts: data.max_attempts ?? null,
         question_count: data.question_count ?? null,
         questions: data.questions
@@ -256,15 +332,21 @@ const submit = (): void => {
                 explanation: q.explanation || null,
                 correct_answer:
                     q.type === 'short_answer'
-                        ? q.correct_answer.map((v) => v.trim()).filter((v) => v.length > 0)
+                        ? q.correct_answer
+                              .map((v) => v.trim())
+                              .filter((v) => v.length > 0)
                         : undefined,
-                case_sensitive: q.type === 'short_answer' ? q.case_sensitive : undefined,
+                case_sensitive:
+                    q.type === 'short_answer' ? q.case_sensitive : undefined,
                 choices:
                     q.type === 'short_answer'
                         ? []
                         : q.choices
                               .filter((c) => c.choice_text.trim() !== '')
-                              .map((c) => ({ choice_text: c.choice_text, is_correct: c.is_correct })),
+                              .map((c) => ({
+                                  choice_text: c.choice_text,
+                                  is_correct: c.is_correct,
+                              })),
             })),
     }));
 
@@ -272,8 +354,32 @@ const submit = (): void => {
 
     const options = {
         preserveScroll: true,
-        onSuccess: () => toast.success(props.submitLabel === 'Create quiz' ? 'Quiz created!' : 'Changes saved.'),
-        onError: () => toast.error('Please fix the errors and try again.'),
+        onSuccess: () => {
+            toast.success(
+                props.submitLabel === 'Create quiz'
+                    ? 'Quiz created!'
+                    : 'Changes saved.',
+            );
+        },
+        onError: (errors: Record<string, string>) => {
+            toast.error('Please fix the errors and try again.');
+            const hasStep1Errors = Object.keys(errors).some((k) =>
+                [
+                    'title',
+                    'description',
+                    'status',
+                    'max_attempts',
+                    'question_count',
+                ].includes(k),
+            );
+            if (hasStep1Errors) {
+                currentStep.value = 1;
+            } else if (
+                Object.keys(errors).some((k) => k.startsWith('questions.'))
+            ) {
+                currentStep.value = 2;
+            }
+        },
     };
 
     if (method === 'put') {
@@ -290,400 +396,845 @@ const questionError = (index: number, field: string): string | undefined => {
 </script>
 
 <template>
-    <form class="flex flex-col gap-6" @submit.prevent="requestSave">
-        <Card>
-            <CardHeader>
-                <CardTitle>Quiz details</CardTitle>
-                <CardDescription>Give your quiz a clear title so learners know what they're taking.</CardDescription>
-            </CardHeader>
-            <CardContent class="grid gap-5">
-                <div class="grid gap-2">
-                    <Label for="title">Title</Label>
-                    <Input id="title" v-model="form.title" placeholder="e.g. Introduction to Photosynthesis" />
-                    <InputError :message="form.errors.title" />
-                </div>
-
-                <div class="grid gap-2">
-                    <Label for="description">Description</Label>
-                    <textarea
-                        id="description"
-                        v-model="form.description"
-                        rows="3"
-                        class="border-input bg-background placeholder:text-muted-foreground focus-visible:ring-ring/50 min-h-20 w-full rounded-md border px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-                        placeholder="Optional description shown to learners before they start."
-                    />
-                    <InputError :message="form.errors.description" />
-                </div>
-
-                <div class="grid gap-5 md:grid-cols-2">
-                    <div class="grid gap-2">
-                        <Label>Status</Label>
-                        <Select v-model="form.status">
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="active">Active (joinable by code)</SelectItem>
-                                <SelectItem value="inactive">Inactive (draft)</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <p class="text-xs text-muted-foreground">
-                            Only active quizzes can be joined using the share code.
-                        </p>
-                        <InputError :message="form.errors.status" />
-                    </div>
-
-                    <div v-if="props.quiz" class="grid gap-2">
-                        <Label>Share code</Label>
-                        <div class="flex items-center gap-2">
-                            <div
-                                class="flex h-10 flex-1 items-center justify-center rounded-md border bg-muted font-mono text-lg font-semibold tracking-widest"
-                            >
-                                {{ form.quiz_code || props.quiz.quiz_code }}
-                            </div>
-                            <Button
-                                v-if="props.regenerateUrl"
-                                type="button"
-                                variant="outline"
-                                @click="regenerateDialogOpen = true"
-                            >
-                                Regenerate
-                            </Button>
-                        </div>
-                        <p class="text-xs text-muted-foreground">
-                            Share this code so others can join the quiz. Regenerating breaks existing links.
-                        </p>
-                    </div>
-                    <div v-else class="grid gap-2">
-                        <Label>Share code</Label>
-                        <div class="flex h-10 items-center rounded-md border border-dashed bg-muted/30 px-3 text-sm text-muted-foreground">
-                            Auto-generated on save (e.g. ABC234)
-                        </div>
-                    </div>
-                </div>
-
-                <div class="grid gap-2">
-                    <Label>Number of questions</Label>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <Select
-                            :model-value="[5,10,15,20,25,30,40,50,60].includes(form.question_count ?? 0) ? String(form.question_count) : ''"
-                            @update:model-value="(v: string) => handleQuestionCountChange(Number(v))"
-                        >
-                            <SelectTrigger class="w-36">
-                                <SelectValue placeholder="Quick pick…" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="5">5 questions</SelectItem>
-                                <SelectItem value="10">10 questions</SelectItem>
-                                <SelectItem value="15">15 questions</SelectItem>
-                                <SelectItem value="20">20 questions</SelectItem>
-                                <SelectItem value="25">25 questions</SelectItem>
-                                <SelectItem value="30">30 questions</SelectItem>
-                                <SelectItem value="40">40 questions</SelectItem>
-                                <SelectItem value="50">50 questions</SelectItem>
-                                <SelectItem value="60">60 questions</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <span class="text-xs text-muted-foreground">or type</span>
-                        <Input
-                            v-model.number="form.question_count"
-                            type="number"
-                            min="1"
-                            max="60"
-                            class="w-20"
-                            @update:model-value="(v: any) => handleQuestionCountChange(Number(v))"
-                        />
-                        <span class="text-xs text-muted-foreground">max 60</span>
-                    </div>
-                    <p class="text-xs text-muted-foreground">
-                        {{ questionsFilledIn }}/{{ form.question_count }} questions filled in · empty slots are placeholders you can fill later.
-                    </p>
-                    <InputError :message="form.errors.question_count" />
-                </div>
-
-                <div class="grid gap-2">
-                    <div class="flex items-center justify-between gap-2">
-                        <Label>Attempt limit</Label>
-                        <Button
-                            type="button"
-                            :variant="form.max_attempts !== null ? 'default' : 'outline'"
-                            size="sm"
-                            class="h-7 gap-1.5 text-xs"
-                            @click="form.max_attempts = form.max_attempts !== null ? null : 3"
-                        >
-                            <span
-                                class="size-1.5 rounded-full"
-                                :class="form.max_attempts !== null ? 'bg-primary-foreground' : 'bg-muted-foreground/50'"
-                            />
-                            {{ form.max_attempts !== null ? 'Limited' : 'Unlimited' }}
-                        </Button>
-                    </div>
-                    <div v-if="form.max_attempts !== null" class="flex items-center gap-2">
-                        <Input
-                            v-model.number="form.max_attempts"
-                            type="number"
-                            min="1"
-                            max="100"
-                            class="w-24"
-                        />
-                        <span class="text-sm text-muted-foreground">attempts per user</span>
-                    </div>
-                    <p class="text-xs text-muted-foreground">
-                        {{ form.max_attempts !== null
-                            ? `Users can take this quiz up to ${form.max_attempts} time${form.max_attempts === 1 ? '' : 's'}.`
-                            : 'Users can take this quiz unlimited times.' }}
-                    </p>
-                    <InputError :message="form.errors.max_attempts" />
-                </div>
-            </CardContent>
-        </Card>
-
-        <Card>
-            <CardHeader class="flex flex-row items-start justify-between gap-4">
-                <div>
-                    <CardTitle>Questions</CardTitle>
-                    <CardDescription>
-                        {{ form.questions.length }} question{{ form.questions.length === 1 ? '' : 's' }} ·
-                        {{ totalPoints }} point{{ totalPoints === 1 ? '' : 's' }} total
-                    </CardDescription>
-                </div>
-                <Badge v-if="!hasCorrectAnswers" variant="destructive">Mark correct answers</Badge>
-                <Badge v-else variant="success">Ready</Badge>
-            </CardHeader>
-
-            <CardContent class="flex flex-col gap-4">
-                <div
-                    v-for="(question, qIndex) in form.questions"
-                    :key="qIndex"
-                    class="rounded-xl border bg-card p-4 shadow-sm"
+    <div class="flex flex-col gap-6">
+        <!-- Wizard step indicator -->
+        <div class="flex items-center">
+            <template v-for="(step, i) in steps" :key="step.number">
+                <button
+                    type="button"
+                    class="group flex flex-1 flex-col items-center gap-1.5 rounded-lg px-2 py-3 transition-colors"
+                    :class="
+                        step.number <= highestStep
+                            ? 'cursor-pointer hover:bg-muted/50'
+                            : 'opacity-40'
+                    "
+                    :disabled="step.number > highestStep"
+                    @click="goToStep(step.number)"
                 >
-                    <div class="mb-3 flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                            <GripVertical class="size-4" />
-                            Question {{ qIndex + 1 }}
-                        </div>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            class="text-destructive hover:text-destructive"
-                            @click="removeQuestion(qIndex)"
+                    <div
+                        class="flex size-9 items-center justify-center rounded-full border-2 text-sm font-bold transition-all"
+                        :class="{
+                            'border-primary bg-primary text-primary-foreground shadow-md':
+                                currentStep === step.number,
+                            'border-primary/50 bg-primary/10 text-primary':
+                                currentStep > step.number &&
+                                step.number <= highestStep,
+                            'border-muted-foreground/25 bg-muted/30 text-muted-foreground':
+                                currentStep < step.number,
+                        }"
+                    >
+                        <CheckCircle2
+                            v-if="currentStep > step.number"
+                            class="size-4"
+                        />
+                        <span v-else>{{ step.number }}</span>
+                    </div>
+                    <div class="text-center">
+                        <p
+                            class="text-xs font-semibold"
+                            :class="
+                                currentStep === step.number
+                                    ? 'text-foreground'
+                                    : 'text-muted-foreground'
+                            "
                         >
-                            <Trash2 class="size-4" />
-                            Remove
-                        </Button>
+                            {{ step.label }}
+                        </p>
+                    </div>
+                </button>
+                <div
+                    v-if="i < steps.length - 1"
+                    class="h-0.5 w-8 flex-none transition-colors md:flex-1"
+                    :class="highestStep > i + 1 ? 'bg-primary/40' : 'bg-border'"
+                />
+            </template>
+        </div>
+
+        <!-- Step 1: Setup -->
+        <template v-if="currentStep === 1">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Quiz details</CardTitle>
+                    <CardDescription
+                        >Give your quiz a clear title so learners know what
+                        they're taking.</CardDescription
+                    >
+                </CardHeader>
+                <CardContent class="grid gap-5">
+                    <div class="grid gap-2">
+                        <Label for="title">
+                            Title <span class="text-destructive">*</span>
+                        </Label>
+                        <Input
+                            id="title"
+                            v-model="form.title"
+                            placeholder="e.g. Introduction to Photosynthesis"
+                        />
+                        <InputError :message="form.errors.title" />
                     </div>
 
-                    <div class="grid gap-4">
+                    <div class="grid gap-2">
+                        <Label for="description">Description</Label>
+                        <textarea
+                            id="description"
+                            v-model="form.description"
+                            rows="3"
+                            class="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                            placeholder="Optional description shown to learners before they start."
+                        />
+                        <InputError :message="form.errors.description" />
+                    </div>
+
+                    <div class="grid gap-5 md:grid-cols-2">
                         <div class="grid gap-2">
-                            <Label :for="`question-${qIndex}`">Question text</Label>
-                            <textarea
-                                :id="`question-${qIndex}`"
-                                v-model="question.question_text"
-                                rows="2"
-                                class="border-input bg-background focus-visible:ring-ring/50 min-h-16 w-full rounded-md border px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-                                placeholder="What would you like to ask?"
-                            />
-                            <InputError :message="questionError(qIndex, 'question_text')" />
+                            <Label>Status</Label>
+                            <Select v-model="form.status">
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="active"
+                                        >Active (joinable by code)</SelectItem
+                                    >
+                                    <SelectItem value="inactive"
+                                        >Inactive (draft)</SelectItem
+                                    >
+                                </SelectContent>
+                            </Select>
+                            <p class="text-xs text-muted-foreground">
+                                Only active quizzes can be joined using the
+                                share code.
+                            </p>
+                            <InputError :message="form.errors.status" />
                         </div>
 
-                        <div class="grid gap-4 md:grid-cols-[1fr_120px]">
-                            <div class="grid gap-2">
-                                <Label>Type</Label>
-                                <Select
-                                    :model-value="question.type"
-                                    @update:model-value="(v: any) => handleTypeChange(question, v)"
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="multiple_choice">Multiple choice</SelectItem>
-                                        <SelectItem value="true_false">True / False</SelectItem>
-                                        <SelectItem value="short_answer">Short answer</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div class="grid gap-2">
-                                <Label :for="`points-${qIndex}`">Points</Label>
-                                <Input
-                                    :id="`points-${qIndex}`"
-                                    v-model.number="question.points"
-                                    type="number"
-                                    min="1"
-                                    max="100"
-                                />
-                            </div>
-                        </div>
-
-                        <div v-if="question.type !== 'short_answer'" class="grid gap-2">
-                            <Label>
-                                Choices —
-                                {{ question.type === 'true_false' ? 'select the correct one' : 'tick correct answers (at least one must be wrong)' }}
-                            </Label>
-                            <div class="grid gap-2">
+                        <div v-if="props.quiz" class="grid gap-2">
+                            <Label>Share code</Label>
+                            <div class="flex items-center gap-2">
                                 <div
-                                    v-for="(choice, cIndex) in question.choices"
-                                    :key="cIndex"
-                                    class="flex items-center gap-2 rounded-md border bg-background p-2"
-                                    :class="choice.is_correct ? 'border-emerald-300 ring-2 ring-emerald-200 dark:border-emerald-700 dark:ring-emerald-900/40' : ''"
+                                    class="flex h-10 flex-1 items-center justify-center rounded-md border bg-muted font-mono text-lg font-semibold tracking-widest"
                                 >
-                                    <button
-                                        type="button"
-                                        class="flex size-8 shrink-0 items-center justify-center rounded-full border transition"
-                                        :class="choice.is_correct ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-muted text-muted-foreground hover:border-emerald-400'"
-                                        :aria-label="choice.is_correct ? 'Correct answer' : 'Mark as correct'"
-                                        @click="toggleCorrect(question, cIndex)"
-                                    >
-                                        <CheckCircle2 v-if="choice.is_correct" class="size-4" />
-                                        <span v-else class="text-xs font-semibold">{{ String.fromCharCode(65 + cIndex) }}</span>
-                                    </button>
-                                    <Input
-                                        v-model="choice.choice_text"
-                                        :placeholder="`Option ${String.fromCharCode(65 + cIndex)}`"
-                                        :readonly="question.type === 'true_false'"
-                                        class="flex-1"
-                                    />
-                                    <Button
-                                        v-if="question.type === 'multiple_choice' && question.choices.length > 2"
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        class="text-muted-foreground"
-                                        @click="removeChoice(question, cIndex)"
-                                    >
-                                        <Trash2 class="size-4" />
-                                    </Button>
+                                    {{ form.quiz_code || props.quiz.quiz_code }}
                                 </div>
-                            </div>
-                            <Button
-                                v-if="question.type === 'multiple_choice'"
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                class="w-fit"
-                                @click="addChoice(question)"
-                            >
-                                <Plus class="size-4" />
-                                Add choice
-                            </Button>
-                        </div>
-
-                        <div v-else class="grid gap-2">
-                            <div class="flex items-center justify-between gap-2">
-                                <Label>Accepted answers</Label>
                                 <Button
+                                    v-if="props.regenerateUrl"
                                     type="button"
-                                    :variant="question.case_sensitive ? 'default' : 'outline'"
-                                    size="sm"
-                                    class="h-7 gap-1.5 text-xs"
-                                    @click="question.case_sensitive = !question.case_sensitive"
+                                    variant="outline"
+                                    @click="regenerateDialogOpen = true"
                                 >
-                                    <span
-                                        class="size-1.5 rounded-full"
-                                        :class="question.case_sensitive ? 'bg-primary-foreground' : 'bg-muted-foreground/50'"
-                                    />
-                                    {{ question.case_sensitive ? 'Case-sensitive' : 'Case-insensitive' }}
+                                    Regenerate
                                 </Button>
                             </div>
                             <p class="text-xs text-muted-foreground">
-                                {{ question.case_sensitive ? 'Exact case match required.' : 'Case-insensitive — any capitalisation accepted.' }}
-                                Add every wording you want to accept.
+                                Share this code so others can join. Regenerating
+                                breaks existing links.
                             </p>
-                            <div class="grid gap-2">
-                                <div
-                                    v-for="(answer, aIndex) in question.correct_answer"
-                                    :key="aIndex"
-                                    class="flex items-center gap-2"
-                                >
-                                    <Input
-                                        v-model="question.correct_answer[aIndex]"
-                                        placeholder="e.g. glucose"
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        class="text-muted-foreground"
-                                        @click="removeAcceptedAnswer(question, aIndex)"
+                        </div>
+                        <div v-else class="grid gap-2">
+                            <Label>Share code</Label>
+                            <div
+                                class="flex h-10 items-center rounded-md border border-dashed bg-muted/30 px-3 text-sm text-muted-foreground"
+                            >
+                                Auto-generated on save (e.g. 482913)
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid gap-2">
+                        <Label>Number of questions</Label>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <Select
+                                :model-value="
+                                    [
+                                        5, 10, 15, 20, 25, 30, 40, 50, 60,
+                                    ].includes(form.question_count ?? 0)
+                                        ? String(form.question_count)
+                                        : ''
+                                "
+                                @update:model-value="
+                                    (v: string) =>
+                                        handleQuestionCountChange(Number(v))
+                                "
+                            >
+                                <SelectTrigger class="w-36">
+                                    <SelectValue placeholder="Quick pick…" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="5"
+                                        >5 questions</SelectItem
                                     >
-                                        <Trash2 class="size-4" />
-                                    </Button>
-                                </div>
+                                    <SelectItem value="10"
+                                        >10 questions</SelectItem
+                                    >
+                                    <SelectItem value="15"
+                                        >15 questions</SelectItem
+                                    >
+                                    <SelectItem value="20"
+                                        >20 questions</SelectItem
+                                    >
+                                    <SelectItem value="25"
+                                        >25 questions</SelectItem
+                                    >
+                                    <SelectItem value="30"
+                                        >30 questions</SelectItem
+                                    >
+                                    <SelectItem value="40"
+                                        >40 questions</SelectItem
+                                    >
+                                    <SelectItem value="50"
+                                        >50 questions</SelectItem
+                                    >
+                                    <SelectItem value="60"
+                                        >60 questions</SelectItem
+                                    >
+                                </SelectContent>
+                            </Select>
+                            <span class="text-xs text-muted-foreground"
+                                >or type</span
+                            >
+                            <Input
+                                v-model.number="form.question_count"
+                                type="number"
+                                min="1"
+                                max="60"
+                                class="w-20"
+                                @update:model-value="
+                                    (v: any) =>
+                                        handleQuestionCountChange(Number(v))
+                                "
+                            />
+                            <span class="text-xs text-muted-foreground"
+                                >max 60</span
+                            >
+                        </div>
+                        <p class="text-xs text-muted-foreground">
+                            Empty slots are placeholders you can fill on the
+                            next step.
+                        </p>
+                        <InputError :message="form.errors.question_count" />
+                    </div>
+
+                    <div class="grid gap-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <Label>Attempt limit</Label>
+                            <Button
+                                type="button"
+                                :variant="
+                                    form.max_attempts !== null
+                                        ? 'default'
+                                        : 'outline'
+                                "
+                                size="sm"
+                                class="h-7 gap-1.5 text-xs"
+                                @click="
+                                    form.max_attempts =
+                                        form.max_attempts !== null ? null : 3
+                                "
+                            >
+                                <span
+                                    class="size-1.5 rounded-full"
+                                    :class="
+                                        form.max_attempts !== null
+                                            ? 'bg-primary-foreground'
+                                            : 'bg-muted-foreground/50'
+                                    "
+                                />
+                                {{
+                                    form.max_attempts !== null
+                                        ? 'Limited'
+                                        : 'Unlimited'
+                                }}
+                            </Button>
+                        </div>
+                        <div
+                            v-if="form.max_attempts !== null"
+                            class="flex items-center gap-2"
+                        >
+                            <Input
+                                v-model.number="form.max_attempts"
+                                type="number"
+                                min="1"
+                                max="100"
+                                class="w-24"
+                            />
+                            <span class="text-sm text-muted-foreground"
+                                >attempts per user</span
+                            >
+                        </div>
+                        <p class="text-xs text-muted-foreground">
+                            {{
+                                form.max_attempts !== null
+                                    ? `Users can take this quiz up to ${form.max_attempts} time${form.max_attempts === 1 ? '' : 's'}.`
+                                    : 'Users can take this quiz unlimited times.'
+                            }}
+                        </p>
+                        <InputError :message="form.errors.max_attempts" />
+                    </div>
+                </CardContent>
+            </Card>
+
+            <div class="flex items-center justify-between">
+                <Button variant="outline" as-child>
+                    <Link :href="quizzesIndex()">Cancel</Link>
+                </Button>
+                <Button :disabled="!step1Valid" @click="nextStep">
+                    Next: Questions
+                    <ChevronRight class="size-4" />
+                </Button>
+            </div>
+        </template>
+
+        <!-- Step 2: Questions -->
+        <template v-else-if="currentStep === 2">
+            <Card>
+                <CardHeader
+                    class="flex flex-row items-start justify-between gap-4"
+                >
+                    <div>
+                        <CardTitle>Questions</CardTitle>
+                        <CardDescription>
+                            {{ questionsFilledIn }}/{{
+                                form.questions.length
+                            }}
+                            filled in · {{ totalPoints }} point{{
+                                totalPoints === 1 ? '' : 's'
+                            }}
+                            total
+                        </CardDescription>
+                    </div>
+                    <Badge v-if="!hasCorrectAnswers" variant="destructive"
+                        >Mark correct answers</Badge
+                    >
+                    <Badge v-else variant="success">Ready</Badge>
+                </CardHeader>
+
+                <CardContent class="flex flex-col gap-4">
+                    <div
+                        v-for="(question, qIndex) in form.questions"
+                        :key="qIndex"
+                        class="rounded-xl border bg-card p-4 shadow-sm"
+                    >
+                        <div
+                            class="mb-3 flex items-center justify-between gap-3"
+                        >
+                            <div
+                                class="flex items-center gap-2 text-sm font-medium text-muted-foreground"
+                            >
+                                <GripVertical class="size-4" />
+                                Question {{ qIndex + 1 }}
                             </div>
                             <Button
                                 type="button"
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
-                                class="w-fit"
-                                @click="addAcceptedAnswer(question)"
+                                class="text-destructive hover:text-destructive"
+                                @click="removeQuestion(qIndex)"
                             >
-                                <Plus class="size-4" />
-                                Add accepted answer
+                                <Trash2 class="size-4" />
+                                Remove
                             </Button>
                         </div>
 
-                        <div class="grid gap-2">
-                            <Label :for="`explanation-${qIndex}`">Explanation (optional)</Label>
-                            <Input
-                                :id="`explanation-${qIndex}`"
-                                v-model="question.explanation"
-                                placeholder="Shown in results to help learners understand."
-                            />
+                        <div class="grid gap-4">
+                            <div class="grid gap-2">
+                                <Label :for="`question-${qIndex}`"
+                                    >Question text</Label
+                                >
+                                <textarea
+                                    :id="`question-${qIndex}`"
+                                    v-model="question.question_text"
+                                    rows="2"
+                                    class="min-h-16 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                    placeholder="What would you like to ask?"
+                                />
+                                <InputError
+                                    :message="
+                                        questionError(qIndex, 'question_text')
+                                    "
+                                />
+                            </div>
+
+                            <div class="grid gap-4 md:grid-cols-[1fr_120px]">
+                                <div class="grid gap-2">
+                                    <Label>Type</Label>
+                                    <Select
+                                        :model-value="question.type"
+                                        @update:model-value="
+                                            (v: any) =>
+                                                handleTypeChange(question, v)
+                                        "
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="multiple_choice"
+                                                >Multiple choice</SelectItem
+                                            >
+                                            <SelectItem value="true_false"
+                                                >True / False</SelectItem
+                                            >
+                                            <SelectItem value="short_answer"
+                                                >Short answer</SelectItem
+                                            >
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div class="grid gap-2">
+                                    <Label :for="`points-${qIndex}`"
+                                        >Points</Label
+                                    >
+                                    <Input
+                                        :id="`points-${qIndex}`"
+                                        v-model.number="question.points"
+                                        type="number"
+                                        min="1"
+                                        max="100"
+                                    />
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="question.type !== 'short_answer'"
+                                class="grid gap-2"
+                            >
+                                <Label>
+                                    Choices —
+                                    {{
+                                        question.type === 'true_false'
+                                            ? 'select the correct one'
+                                            : 'tick correct answers (at least one must be wrong)'
+                                    }}
+                                </Label>
+                                <div class="grid gap-2">
+                                    <div
+                                        v-for="(
+                                            choice, cIndex
+                                        ) in question.choices"
+                                        :key="cIndex"
+                                        class="flex items-center gap-2 rounded-md border bg-background p-2"
+                                        :class="
+                                            choice.is_correct
+                                                ? 'border-emerald-300 ring-2 ring-emerald-200 dark:border-emerald-700 dark:ring-emerald-900/40'
+                                                : ''
+                                        "
+                                    >
+                                        <button
+                                            type="button"
+                                            class="flex size-8 shrink-0 items-center justify-center rounded-full border transition"
+                                            :class="
+                                                choice.is_correct
+                                                    ? 'border-emerald-500 bg-emerald-500 text-white'
+                                                    : 'border-muted text-muted-foreground hover:border-emerald-400'
+                                            "
+                                            :aria-label="
+                                                choice.is_correct
+                                                    ? 'Correct answer'
+                                                    : 'Mark as correct'
+                                            "
+                                            @click="
+                                                toggleCorrect(question, cIndex)
+                                            "
+                                        >
+                                            <CheckCircle2
+                                                v-if="choice.is_correct"
+                                                class="size-4"
+                                            />
+                                            <span
+                                                v-else
+                                                class="text-xs font-semibold"
+                                                >{{
+                                                    String.fromCharCode(
+                                                        65 + cIndex,
+                                                    )
+                                                }}</span
+                                            >
+                                        </button>
+                                        <Input
+                                            v-model="choice.choice_text"
+                                            :placeholder="`Option ${String.fromCharCode(65 + cIndex)}`"
+                                            :readonly="
+                                                question.type === 'true_false'
+                                            "
+                                            class="flex-1"
+                                        />
+                                        <Button
+                                            v-if="
+                                                question.type ===
+                                                    'multiple_choice' &&
+                                                question.choices.length > 2
+                                            "
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            class="text-muted-foreground"
+                                            @click="
+                                                removeChoice(question, cIndex)
+                                            "
+                                        >
+                                            <Trash2 class="size-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                                <Button
+                                    v-if="question.type === 'multiple_choice'"
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    class="w-fit"
+                                    @click="addChoice(question)"
+                                >
+                                    <Plus class="size-4" />
+                                    Add choice
+                                </Button>
+                            </div>
+
+                            <div v-else class="grid gap-2">
+                                <div
+                                    class="flex items-center justify-between gap-2"
+                                >
+                                    <Label>Accepted answers</Label>
+                                    <Button
+                                        type="button"
+                                        :variant="
+                                            question.case_sensitive
+                                                ? 'default'
+                                                : 'outline'
+                                        "
+                                        size="sm"
+                                        class="h-7 gap-1.5 text-xs"
+                                        @click="
+                                            question.case_sensitive =
+                                                !question.case_sensitive
+                                        "
+                                    >
+                                        <span
+                                            class="size-1.5 rounded-full"
+                                            :class="
+                                                question.case_sensitive
+                                                    ? 'bg-primary-foreground'
+                                                    : 'bg-muted-foreground/50'
+                                            "
+                                        />
+                                        {{
+                                            question.case_sensitive
+                                                ? 'Case-sensitive'
+                                                : 'Case-insensitive'
+                                        }}
+                                    </Button>
+                                </div>
+                                <p class="text-xs text-muted-foreground">
+                                    {{
+                                        question.case_sensitive
+                                            ? 'Exact case match required.'
+                                            : 'Case-insensitive — any capitalisation accepted.'
+                                    }}
+                                    Add every wording you want to accept.
+                                </p>
+                                <div class="grid gap-2">
+                                    <div
+                                        v-for="(
+                                            answer, aIndex
+                                        ) in question.correct_answer"
+                                        :key="aIndex"
+                                        class="flex items-center gap-2"
+                                    >
+                                        <Input
+                                            v-model="
+                                                question.correct_answer[aIndex]
+                                            "
+                                            placeholder="e.g. glucose"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            class="text-muted-foreground"
+                                            @click="
+                                                removeAcceptedAnswer(
+                                                    question,
+                                                    aIndex,
+                                                )
+                                            "
+                                        >
+                                            <Trash2 class="size-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    class="w-fit"
+                                    @click="addAcceptedAnswer(question)"
+                                >
+                                    <Plus class="size-4" />
+                                    Add accepted answer
+                                </Button>
+                            </div>
+
+                            <div class="grid gap-2">
+                                <Label :for="`explanation-${qIndex}`"
+                                    >Explanation (optional)</Label
+                                >
+                                <Input
+                                    :id="`explanation-${qIndex}`"
+                                    v-model="question.explanation"
+                                    placeholder="Shown in results to help learners understand."
+                                />
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <Button type="button" variant="outline" @click="addQuestion">
-                    <Plus class="size-4" />
-                    Add question
-                </Button>
-            </CardContent>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        @click="addQuestion"
+                    >
+                        <Plus class="size-4" />
+                        Add question
+                    </Button>
+                </CardContent>
+            </Card>
 
-            <CardFooter class="justify-between">
-                <Button variant="ghost" as-child>
-                    <Link :href="quizzesIndex()">Cancel</Link>
+            <div class="flex items-center justify-between">
+                <Button variant="outline" @click="prevStep">
+                    <ChevronLeft class="size-4" />
+                    Back
                 </Button>
-                <Button type="submit" :disabled="form.processing">
+                <Button @click="nextStep">
+                    Review
+                    <ChevronRight class="size-4" />
+                </Button>
+            </div>
+        </template>
+
+        <!-- Step 3: Review -->
+        <template v-else>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Review your quiz</CardTitle>
+                    <CardDescription>
+                        Check everything looks right before
+                        {{
+                            props.submitLabel === 'Create quiz'
+                                ? 'creating'
+                                : 'saving'
+                        }}
+                        your quiz.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent class="grid gap-6">
+                    <!-- Quiz info -->
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div class="space-y-1">
+                            <p
+                                class="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+                            >
+                                Title
+                            </p>
+                            <p class="font-semibold">{{ form.title || '—' }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <p
+                                class="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+                            >
+                                Status
+                            </p>
+                            <Badge
+                                :variant="
+                                    form.status === 'active'
+                                        ? 'success'
+                                        : 'secondary'
+                                "
+                            >
+                                {{
+                                    form.status === 'active'
+                                        ? 'Active'
+                                        : 'Inactive (draft)'
+                                }}
+                            </Badge>
+                        </div>
+                        <div
+                            v-if="form.description"
+                            class="space-y-1 md:col-span-2"
+                        >
+                            <p
+                                class="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+                            >
+                                Description
+                            </p>
+                            <p class="text-sm text-muted-foreground">
+                                {{ form.description }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="h-px bg-border" />
+
+                    <!-- Stats grid -->
+                    <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+                        <div
+                            class="rounded-lg border bg-muted/30 p-3 text-center"
+                        >
+                            <p class="text-2xl font-bold">
+                                {{ form.questions.length }}
+                            </p>
+                            <p class="mt-0.5 text-xs text-muted-foreground">
+                                Total slots
+                            </p>
+                        </div>
+                        <div
+                            class="rounded-lg border bg-muted/30 p-3 text-center"
+                        >
+                            <p class="text-2xl font-bold">
+                                {{ questionsFilledIn }}
+                            </p>
+                            <p class="mt-0.5 text-xs text-muted-foreground">
+                                Filled in
+                            </p>
+                        </div>
+                        <div
+                            class="rounded-lg border bg-muted/30 p-3 text-center"
+                        >
+                            <p class="text-2xl font-bold">{{ totalPoints }}</p>
+                            <p class="mt-0.5 text-xs text-muted-foreground">
+                                Total points
+                            </p>
+                        </div>
+                        <div
+                            class="rounded-lg border bg-muted/30 p-3 text-center"
+                        >
+                            <p class="text-2xl font-bold">
+                                {{ form.max_attempts ?? '∞' }}
+                            </p>
+                            <p class="mt-0.5 text-xs text-muted-foreground">
+                                Max attempts
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Warnings -->
+                    <div
+                        v-if="!hasCorrectAnswers || questionsFilledIn === 0"
+                        class="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
+                    >
+                        <div class="flex items-start gap-3">
+                            <AlertTriangle
+                                class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
+                            />
+                            <div class="space-y-1">
+                                <p
+                                    class="text-sm font-medium text-amber-800 dark:text-amber-300"
+                                >
+                                    Attention needed
+                                </p>
+                                <ul
+                                    class="list-inside list-disc space-y-0.5 text-sm text-amber-700 dark:text-amber-400"
+                                >
+                                    <li v-if="questionsFilledIn === 0">
+                                        No questions have been filled in yet.
+                                    </li>
+                                    <li v-else-if="!hasCorrectAnswers">
+                                        Some questions are missing correct
+                                        answers.
+                                    </li>
+                                </ul>
+                                <p
+                                    class="text-xs text-amber-600 dark:text-amber-500"
+                                >
+                                    You can still save — empty slots and
+                                    unflagged answers will be excluded.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- All good -->
+                    <div
+                        v-else
+                        class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20"
+                    >
+                        <div class="flex items-center gap-3">
+                            <CheckCircle2
+                                class="size-4 shrink-0 text-emerald-600 dark:text-emerald-400"
+                            />
+                            <p
+                                class="text-sm font-medium text-emerald-800 dark:text-emerald-300"
+                            >
+                                All {{ questionsFilledIn }} question{{
+                                    questionsFilledIn === 1 ? '' : 's'
+                                }}
+                                are ready.
+                            </p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <div class="flex items-center justify-between">
+                <Button variant="outline" @click="prevStep">
+                    <ChevronLeft class="size-4" />
+                    Back to questions
+                </Button>
+                <Button :disabled="form.processing" @click="requestSave">
                     {{ props.submitLabel }}
                 </Button>
-            </CardFooter>
-        </Card>
-    </form>
+            </div>
+        </template>
 
-    <ConfirmDialog
-        v-model:open="saveDialogOpen"
-        :title="props.submitLabel === 'Create quiz' ? 'Create quiz?' : 'Save changes?'"
-        :description="props.submitLabel === 'Create quiz'
-            ? 'Your quiz will be created and ready to share once saved.'
-            : 'Your changes will be saved and applied immediately.'"
-        :confirm-label="props.submitLabel"
-        :processing="form.processing"
-        @confirm="submit"
-    />
+        <!-- Save confirmation -->
+        <ConfirmDialog
+            v-model:open="saveDialogOpen"
+            :title="
+                props.submitLabel === 'Create quiz'
+                    ? 'Create quiz?'
+                    : 'Save changes?'
+            "
+            :description="
+                props.submitLabel === 'Create quiz'
+                    ? 'Your quiz will be created and ready to share once saved.'
+                    : 'Your changes will be saved and applied immediately.'
+            "
+            :confirm-label="props.submitLabel"
+            :processing="form.processing"
+            @confirm="submit"
+        />
 
-    <ConfirmDialog
-        v-model:open="removeQuestionDialog.open"
-        title="Remove question?"
-        description="This question and its choices will be removed from the quiz."
-        confirm-label="Remove"
-        variant="destructive"
-        @confirm="confirmRemoveQuestion"
-    />
+        <!-- Remove question confirmation -->
+        <ConfirmDialog
+            v-model:open="removeQuestionDialog.open"
+            title="Remove question?"
+            description="This question and its choices will be removed from the quiz."
+            confirm-label="Remove"
+            variant="destructive"
+            @confirm="confirmRemoveQuestion"
+        />
 
-    <ConfirmDialog
-        v-model:open="regenerateDialogOpen"
-        title="Regenerate share code?"
-        description="The current code will stop working immediately. Anyone with the old code won't be able to join using it."
-        confirm-label="Regenerate"
-        variant="destructive"
-        @confirm="() => {
-            regenerateDialogOpen = false;
-            router.post(props.regenerateUrl!, {}, {
-                preserveScroll: true,
-                onSuccess: () => toast.success('Share code regenerated.'),
-                onError: () => toast.error('Failed to regenerate code.'),
-            });
-        }"
-    />
+        <!-- Regenerate share code confirmation -->
+        <ConfirmDialog
+            v-if="props.regenerateUrl"
+            v-model:open="regenerateDialogOpen"
+            title="Regenerate share code?"
+            description="The current code will stop working immediately. Anyone with the old code won't be able to join using it."
+            confirm-label="Regenerate"
+            variant="destructive"
+            @confirm="
+                () => {
+                    regenerateDialogOpen = false;
+                    router.post(
+                        props.regenerateUrl!,
+                        {},
+                        {
+                            preserveScroll: true,
+                            onSuccess: () =>
+                                toast.success('Share code regenerated.'),
+                            onError: () =>
+                                toast.error('Failed to regenerate code.'),
+                        },
+                    );
+                }
+            "
+        />
+    </div>
 </template>

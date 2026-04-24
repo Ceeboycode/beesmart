@@ -63,7 +63,7 @@ class QuizController extends Controller
                 'source' => $data['source'] ?? Quiz::SOURCE_MANUAL,
                 'source_file' => $data['source_file'] ?? null,
                 'quiz_code' => ! empty($data['quiz_code'])
-                    ? strtoupper($data['quiz_code'])
+                    ? trim($data['quiz_code'])
                     : $this->codeGenerator->generate(),
                 'max_attempts' => $data['max_attempts'] ?? null,
                 'question_count' => $data['question_count'] ?? null,
@@ -129,7 +129,7 @@ class QuizController extends Controller
                 'source' => $data['source'] ?? $quiz->source,
                 'source_file' => $data['source_file'] ?? null,
                 'quiz_code' => ! empty($data['quiz_code'])
-                    ? strtoupper($data['quiz_code'])
+                    ? trim($data['quiz_code'])
                     : $quiz->quiz_code,
                 'max_attempts' => array_key_exists('max_attempts', $data) ? $data['max_attempts'] : $quiz->max_attempts,
                 'question_count' => array_key_exists('question_count', $data) ? $data['question_count'] : $quiz->question_count,

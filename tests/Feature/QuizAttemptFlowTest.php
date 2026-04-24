@@ -10,7 +10,7 @@ function buildScoringQuiz(User $owner): Quiz
 {
     $quiz = Quiz::factory()->for($owner, 'creator')->create([
         'status' => Quiz::STATUS_ACTIVE,
-        'quiz_code' => 'XYZ234',
+        'quiz_code' => '345678',
     ]);
 
     $mc = Question::factory()->multipleChoice()->for($quiz)->create([
@@ -34,17 +34,23 @@ function buildScoringQuiz(User $owner): Quiz
     return $quiz;
 }
 
-test('join by code creates attempt and redirects to taking page', function () {
+test('join by code validates before starting an attempt', function () {
     $owner = User::factory()->create();
     $learner = User::factory()->create();
 
     $quiz = Quiz::factory()->for($owner, 'creator')->create([
         'status' => Quiz::STATUS_ACTIVE,
-        'quiz_code' => 'JOI234',
+        'quiz_code' => '456789',
     ]);
 
     $this->actingAs($learner)
-        ->post(route('attempts.resolve'), ['quiz_code' => 'joi234'])
+        ->post(route('attempts.resolve'), ['quiz_code' => '456789'])
+        ->assertOk();
+
+    expect(QuizAttempt::query()->where('quiz_id', $quiz->id)->count())->toBe(0);
+
+    $this->actingAs($learner)
+        ->post(route('attempts.start', $quiz))
         ->assertRedirect();
 
     $attempt = QuizAttempt::query()
@@ -61,12 +67,22 @@ test('join by code fails for inactive quiz', function () {
 
     Quiz::factory()->for($owner, 'creator')->create([
         'status' => Quiz::STATUS_INACTIVE,
-        'quiz_code' => 'INA234',
+        'quiz_code' => '567892',
     ]);
 
     $this->actingAs($learner)
         ->from(route('attempts.join'))
-        ->post(route('attempts.resolve'), ['quiz_code' => 'INA234'])
+        ->post(route('attempts.resolve'), ['quiz_code' => '567892'])
+        ->assertRedirect(route('attempts.join'))
+        ->assertSessionHasErrors('quiz_code');
+});
+
+test('join rejects non-numeric quiz codes', function () {
+    $learner = User::factory()->create();
+
+    $this->actingAs($learner)
+        ->from(route('attempts.join'))
+        ->post(route('attempts.resolve'), ['quiz_code' => '12AB34'])
         ->assertRedirect(route('attempts.join'))
         ->assertSessionHasErrors('quiz_code');
 });

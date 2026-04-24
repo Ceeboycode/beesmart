@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\QuizAttemptController;
 use App\Http\Controllers\QuizController;
 use Illuminate\Support\Facades\Route;
@@ -10,7 +11,7 @@ Route::inertia('/', 'Welcome', [
 ])->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'Dashboard')->name('dashboard');
+    Route::get('dashboard', DashboardController::class)->name('dashboard');
 
     Route::resource('quizzes', QuizController::class);
     Route::post('quizzes/{quiz}/regenerate-code', [QuizController::class, 'regenerateCode'])

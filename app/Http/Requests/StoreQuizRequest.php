@@ -25,7 +25,7 @@ class StoreQuizRequest extends FormRequest
             'status' => ['nullable', Rule::in([Quiz::STATUS_ACTIVE, Quiz::STATUS_INACTIVE])],
             'source' => ['nullable', Rule::in([Quiz::SOURCE_MANUAL, Quiz::SOURCE_AI])],
             'source_file' => ['nullable', 'string', 'max:255'],
-            'quiz_code' => ['nullable', 'string', 'size:6', 'alpha_num', 'unique:quizzes,quiz_code'],
+            'quiz_code' => ['nullable', 'digits:6', 'unique:quizzes,quiz_code'],
             'max_attempts' => ['nullable', 'integer', 'min:1', 'max:100'],
             'question_count' => ['nullable', 'integer', 'min:1', 'max:60'],
 

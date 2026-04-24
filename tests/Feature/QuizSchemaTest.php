@@ -15,7 +15,7 @@ test('an attempt can only have one answer per question', function () {
 
     $quiz = Quiz::create([
         'title' => 'Sample Quiz',
-        'quiz_code' => 'QZ0001',
+        'quiz_code' => '112233',
         'status' => Quiz::STATUS_ACTIVE,
         'source' => Quiz::SOURCE_MANUAL,
     ]);
@@ -55,7 +55,7 @@ test('a user cannot create duplicate attempt numbers on the same quiz', function
 
     $quiz = Quiz::create([
         'title' => 'Math Quiz',
-        'quiz_code' => 'QZ0002',
+        'quiz_code' => '223344',
         'status' => Quiz::STATUS_ACTIVE,
         'source' => Quiz::SOURCE_MANUAL,
     ]);
@@ -78,7 +78,7 @@ test('quiz attempt status defaults and answer json is cast to array', function (
 
     $quiz = Quiz::create([
         'title' => 'Science Quiz',
-        'quiz_code' => 'QZ0003',
+        'quiz_code' => '334455',
         'status' => Quiz::STATUS_ACTIVE,
         'source' => Quiz::SOURCE_MANUAL,
     ]);
@@ -116,7 +116,7 @@ test('quiz stores and resolves its creator', function () {
 
     $quiz = Quiz::create([
         'title' => 'History Quiz',
-        'quiz_code' => 'QZ0004',
+        'quiz_code' => '445566',
         'status' => Quiz::STATUS_ACTIVE,
         'source' => Quiz::SOURCE_MANUAL,
         'created_by' => $creator->id,

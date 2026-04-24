@@ -36,7 +36,7 @@ test('store creates quiz with nested questions and choices', function () {
     $quiz = Quiz::query()->with('questions.choices')->first();
 
     expect($quiz)->not->toBeNull()
-        ->and($quiz->quiz_code)->toMatch('/^[A-HJ-NP-Z]{3}[2-9]{3}$/')
+        ->and($quiz->quiz_code)->toMatch('/^[2-9]{6}$/')
         ->and($quiz->questions)->toHaveCount(2)
         ->and($quiz->questions[0]->choices)->toHaveCount(3)
         ->and($quiz->questions[1]->type)->toBe(Question::TYPE_SHORT_ANSWER)
@@ -45,15 +45,15 @@ test('store creates quiz with nested questions and choices', function () {
 
 test('regenerate code endpoint assigns a new unique code', function () {
     $user = User::factory()->create();
-    $quiz = Quiz::factory()->for($user, 'creator')->create(['quiz_code' => 'ABC234']);
+    $quiz = Quiz::factory()->for($user, 'creator')->create(['quiz_code' => '234567']);
 
     $this->actingAs($user)
         ->post(route('quizzes.regenerate-code', $quiz))
         ->assertRedirect();
 
     expect($quiz->refresh()->quiz_code)
-        ->not->toBe('ABC234')
-        ->toMatch('/^[A-HJ-NP-Z]{3}[2-9]{3}$/');
+        ->not->toBe('234567')
+        ->toMatch('/^[2-9]{6}$/');
 });
 
 test('non-creator cannot regenerate quiz code', function () {

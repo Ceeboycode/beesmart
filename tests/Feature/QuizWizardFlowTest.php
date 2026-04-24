@@ -37,7 +37,7 @@ test('quiz wizard update modifies quiz details', function () {
     $quiz = Quiz::create([
         'title' => 'Old Title',
         'description' => 'Old description',
-        'quiz_code' => 'WIZ001',
+        'quiz_code' => '123456',
         'status' => Quiz::STATUS_INACTIVE,
         'source' => Quiz::SOURCE_MANUAL,
         'created_by' => $user->id,
@@ -47,7 +47,7 @@ test('quiz wizard update modifies quiz details', function () {
         ->put(route('quizzes.update', $quiz), [
             'title' => 'New Title',
             'description' => 'Updated description',
-            'quiz_code' => 'WIZ002',
+            'quiz_code' => '654321',
             'status' => 'active',
             'source' => 'ai',
             'source_file' => 'biology.pdf',
@@ -58,5 +58,5 @@ test('quiz wizard update modifies quiz details', function () {
         ->and($quiz->status)->toBe(Quiz::STATUS_ACTIVE)
         ->and($quiz->source)->toBe(Quiz::SOURCE_AI)
         ->and($quiz->source_file)->toBe('biology.pdf')
-        ->and($quiz->quiz_code)->toBe('WIZ002');
+        ->and($quiz->quiz_code)->toBe('654321');
 });

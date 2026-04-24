@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { BookOpen, CaseSensitive, CheckSquare, Send, TriangleAlert } from 'lucide-vue-next';
+import { BookOpen, CheckSquare, Send, TriangleAlert } from 'lucide-vue-next';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,7 +29,8 @@ const emit = defineEmits<{
 }>();
 
 const questionCount = computed(() => {
-    if (props.quiz?.questions_count !== undefined) return props.quiz.questions_count;
+    if (props.quiz?.questions_count !== undefined)
+        return props.quiz.questions_count;
     if (props.quiz?.questions) return props.quiz.questions.length;
     return null;
 });
@@ -39,15 +40,28 @@ const questionCount = computed(() => {
     <Dialog :open="props.open" @update:open="emit('update:open', $event)">
         <DialogContent :show-close-button="false" class="sm:max-w-md">
             <DialogHeader>
-                <div class="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
-                    <BookOpen class="size-6 text-amber-600 dark:text-amber-400" />
+                <div
+                    class="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30"
+                >
+                    <BookOpen
+                        class="size-6 text-amber-600 dark:text-amber-400"
+                    />
                 </div>
                 <DialogTitle class="text-center text-xl">
-                    {{ props.quiz?.title ? `Ready for "${props.quiz.title}"?` : 'Before you begin…' }}
+                    {{
+                        props.quiz?.title
+                            ? `Ready for "${props.quiz.title}"?`
+                            : 'Before you begin…'
+                    }}
                 </DialogTitle>
                 <DialogDescription class="text-center">
                     <span v-if="questionCount !== null">
-                        This quiz has <span class="font-semibold text-foreground">{{ questionCount }} question{{ questionCount === 1 ? '' : 's' }}</span>.
+                        This quiz has
+                        <span class="font-semibold text-foreground"
+                            >{{ questionCount }} question{{
+                                questionCount === 1 ? '' : 's'
+                            }}</span
+                        >.
                     </span>
                     Read the reminders below before starting.
                 </DialogDescription>
@@ -59,20 +73,29 @@ const questionCount = computed(() => {
                 <AlertDescription>
                     <ul class="mt-1 grid gap-1.5 text-sm">
                         <li class="flex items-start gap-2">
-                            <CheckSquare class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                            You can navigate freely between questions before submitting.
+                            <CheckSquare
+                                class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
+                            />
+                            You can navigate freely between questions before
+                            submitting.
                         </li>
                         <li class="flex items-start gap-2">
-                            <CheckSquare class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                            Multiple-choice questions may have <span class="font-medium">more than one correct answer</span> — select all that apply.
+                            <CheckSquare
+                                class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
+                            />
+                            Multiple-choice questions may have
+                            <span class="font-medium"
+                                >more than one correct answer</span
+                            >
+                            — select all that apply.
                         </li>
                         <li class="flex items-start gap-2">
-                            <CaseSensitive class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                            Some short-answer questions are <span class="font-medium">case-sensitive</span> — check your capitalisation.
-                        </li>
-                        <li class="flex items-start gap-2">
-                            <Send class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                            Once you click <span class="font-medium">Submit quiz</span>, your answers are final and cannot be changed.
+                            <Send
+                                class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
+                            />
+                            Once you click
+                            <span class="font-medium">Submit quiz</span>, your
+                            answers are final and cannot be changed.
                         </li>
                     </ul>
                 </AlertDescription>

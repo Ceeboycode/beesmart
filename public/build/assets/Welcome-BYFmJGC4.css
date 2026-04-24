@@ -1,0 +1,76 @@
+
+@keyframes fade-in-up-e573a5e5 {
+from {
+        opacity: 0;
+        transform: translateY(30px);
+}
+to {
+        opacity: 1;
+        transform: translateY(0);
+}
+}
+@keyframes float-e573a5e5 {
+0%, 100% {
+        transform: translateY(0px);
+}
+50% {
+        transform: translateY(-10px);
+}
+}
+@keyframes float-delayed-e573a5e5 {
+0%, 100% {
+        transform: translateY(0px);
+}
+50% {
+        transform: translateY(-8px);
+}
+}
+@keyframes count-up-e573a5e5 {
+from {
+        opacity: 0;
+        transform: scale(0.8);
+}
+to {
+        opacity: 1;
+        transform: scale(1);
+}
+}
+.animate-fade-in-up[data-v-e573a5e5] {
+    animation: fade-in-up-e573a5e5 0.8s ease-out forwards;
+}
+.animate-float[data-v-e573a5e5] {
+    animation: float-e573a5e5 3s ease-in-out infinite;
+}
+.animate-float-delayed[data-v-e573a5e5] {
+    animation: float-delayed-e573a5e5 4s ease-in-out 1s infinite;
+}
+.stat-number[data-v-e573a5e5] {
+    animation: count-up-e573a5e5 0.6s ease-out forwards;
+}
+.feature-card[data-v-e573a5e5],
+.testimonial-card[data-v-e573a5e5],
+.step-card[data-v-e573a5e5] {
+    animation: fade-in-up-e573a5e5 0.6s ease-out forwards;
+}
+
+/* Smooth scroll behavior */
+html[data-v-e573a5e5] {
+    scroll-behavior: smooth;
+}
+
+/* Focus styles for accessibility */
+[data-v-e573a5e5]:focus-visible {
+    outline: 2px solid #f59e0b;
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+[data-v-e573a5e5],[data-v-e573a5e5]::before,[data-v-e573a5e5]::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+}
+}
