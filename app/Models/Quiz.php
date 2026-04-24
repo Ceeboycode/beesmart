@@ -1,0 +1,54 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class Quiz extends Model
+{
+    use HasFactory;
+
+    public const STATUS_ACTIVE = 'active';
+    public const STATUS_INACTIVE = 'inactive';
+
+    public const SOURCE_MANUAL = 'manual';
+    public const SOURCE_AI = 'ai';
+
+    protected $fillable = [
+        'title',
+        'description',
+        'quiz_code',
+        'max_attempts',
+        'question_count',
+        'status',
+        'source',
+        'source_file',
+        'created_by',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'max_attempts' => 'integer',
+            'question_count' => 'integer',
+        ];
+    }
+
+    public function questions(): HasMany
+    {
+        return $this->hasMany(Question::class);
+    }
+
+    public function attempts(): HasMany
+    {
+        return $this->hasMany(QuizAttempt::class);
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+}
