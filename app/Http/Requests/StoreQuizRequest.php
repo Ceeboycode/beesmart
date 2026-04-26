@@ -28,6 +28,11 @@ class StoreQuizRequest extends FormRequest
             'quiz_code' => ['nullable', 'digits:6', 'unique:quizzes,quiz_code'],
             'max_attempts' => ['nullable', 'integer', 'min:1', 'max:100'],
             'question_count' => ['nullable', 'integer', 'min:1', 'max:60'],
+            'shuffle_questions' => ['nullable', 'boolean'],
+            'shuffle_choices' => ['nullable', 'boolean'],
+            'tab_monitoring_enabled' => ['nullable', 'boolean'],
+            'tab_violation_action' => ['nullable', Rule::in(['warn', 'auto_submit'])],
+            'tab_violation_limit' => ['nullable', 'integer', 'min:1', 'max:10'],
 
             'questions' => ['nullable', 'array'],
             'questions.*.question_text' => ['required_with:questions', 'string', 'max:2000'],

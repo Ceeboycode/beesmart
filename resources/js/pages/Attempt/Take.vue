@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { ChevronLeft, ChevronRight, Flag } from 'lucide-vue-next';
-import { computed, reactive, ref } from 'vue';
+import { AlertTriangle, ChevronLeft, ChevronRight, Flag, MonitorX } from 'lucide-vue-next';
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { recordViolation as recordViolationAction } from '@/actions/App/Http/Controllers/QuizAttemptController';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,11 +26,15 @@ type AnswerState = { choice_ids: number[]; text: string };
 const props = defineProps<{
     attempt: {
         id: number;
+        tab_violations: number;
         quiz: {
             id: number;
             title: string;
             description: string | null;
             quiz_code: string;
+            tab_monitoring_enabled: boolean;
+            tab_violation_action: 'warn' | 'auto_submit';
+            tab_violation_limit: number;
             questions: TakeQuestion[];
         };
     };
@@ -48,6 +53,12 @@ const questions = props.attempt.quiz.questions;
 const currentIndex = ref(0);
 const submitting = ref(false);
 const submitDialogOpen = ref(false);
+
+// Tab monitoring state
+const tabViolations = ref(props.attempt.tab_violations);
+const showViolationAlert = ref(false);
+const violationAlertTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+const recordingViolation = ref(false);
 
 const answers = reactive<Record<number, AnswerState>>(
     Object.fromEntries(questions.map((q) => [q.id, { choice_ids: [], text: '' }])),
@@ -126,34 +137,154 @@ const goTo = (index: number): void => {
     currentIndex.value = index;
 };
 
+const buildAnswersPayload = () =>
+    questions.map((q) => ({
+        question_id: q.id,
+        choice_ids: answers[q.id].choice_ids,
+        text: answers[q.id].text,
+    }));
+
 const submit = (): void => {
-    if (submitting.value) {
-        return;
-    }
+    if (submitting.value) return;
     submitDialogOpen.value = false;
     submitting.value = true;
+    // Remove the beforeunload guard so the redirect after submit isn't blocked
+    window.removeEventListener('beforeunload', onBeforeUnload);
     router.post(
         attemptsSubmit.url({ attempt: props.attempt.id }),
-        {
-            answers: questions.map((q) => ({
-                question_id: q.id,
-                choice_ids: answers[q.id].choice_ids,
-                text: answers[q.id].text,
-            })),
-        } as unknown as Record<string, unknown>,
-        {
-            onFinish: () => {
-                submitting.value = false;
-            },
-        },
+        { answers: buildAnswersPayload() } as unknown as Record<string, unknown>,
+        { onFinish: () => { submitting.value = false; } },
     );
 };
+
+// --- Tab monitoring ---
+
+const getCsrfToken = (): string => {
+    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
+};
+
+let lastViolationTime = 0;
+
+const handleTabViolation = async (): Promise<void> => {
+    if (!props.attempt.quiz.tab_monitoring_enabled) return;
+    if (submitting.value || recordingViolation.value) return;
+
+    // Debounce: ignore if another violation was recorded within 1.5 s
+    const now = Date.now();
+    if (now - lastViolationTime < 1500) return;
+    lastViolationTime = now;
+
+    recordingViolation.value = true;
+    try {
+        const res = await fetch(recordViolationAction.url({ attempt: props.attempt.id }), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-XSRF-TOKEN': getCsrfToken(),
+            },
+        });
+        if (!res.ok) return;
+        const data: { violations: number; limit: number; action: string; should_auto_submit: boolean } = await res.json();
+        tabViolations.value = data.violations;
+
+        if (data.should_auto_submit) {
+            submit();
+        } else {
+            showViolationAlert.value = true;
+            if (violationAlertTimer.value) clearTimeout(violationAlertTimer.value);
+            violationAlertTimer.value = setTimeout(() => {
+                showViolationAlert.value = false;
+            }, 6000);
+        }
+    } finally {
+        recordingViolation.value = false;
+    }
+};
+
+const onVisibilityChange = (): void => {
+    if (document.hidden) handleTabViolation();
+};
+
+const onWindowBlur = (): void => {
+    // Only fire when tab is still visible (avoids double-count with visibilitychange)
+    if (!document.hidden) handleTabViolation();
+};
+
+const onBeforeUnload = (e: BeforeUnloadEvent): void => {
+    if (submitting.value) return;
+    e.preventDefault();
+};
+
+onMounted(() => {
+    if (props.attempt.quiz.tab_monitoring_enabled) {
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        window.addEventListener('blur', onWindowBlur);
+    }
+    window.addEventListener('beforeunload', onBeforeUnload);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    window.removeEventListener('blur', onWindowBlur);
+    window.removeEventListener('beforeunload', onBeforeUnload);
+    if (violationAlertTimer.value) clearTimeout(violationAlertTimer.value);
+});
 </script>
 
 <template>
     <Head :title="`Taking: ${props.attempt.quiz.title}`" />
 
     <div class="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+        <!-- Monitoring notice banner -->
+        <div
+            v-if="props.attempt.quiz.tab_monitoring_enabled"
+            class="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm dark:border-amber-800 dark:bg-amber-900/20"
+        >
+            <div class="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                <MonitorX class="size-4 shrink-0" />
+                <span>
+                    Tab switching is monitored.
+                    <span v-if="props.attempt.quiz.tab_violation_action === 'auto_submit'">
+                        The quiz auto-submits after {{ props.attempt.quiz.tab_violation_limit }} violation{{ props.attempt.quiz.tab_violation_limit === 1 ? '' : 's' }}.
+                    </span>
+                    <span v-else>Each switch will be flagged.</span>
+                </span>
+            </div>
+            <Badge
+                v-if="tabViolations > 0 || props.attempt.quiz.tab_violation_action === 'auto_submit'"
+                :variant="tabViolations > 0 ? 'destructive' : 'outline'"
+                class="shrink-0"
+            >
+                {{ tabViolations }}{{ props.attempt.quiz.tab_violation_action === 'auto_submit' ? `/${props.attempt.quiz.tab_violation_limit}` : '' }} violation{{ tabViolations === 1 ? '' : 's' }}
+            </Badge>
+        </div>
+
+        <!-- Violation alert -->
+        <Transition
+            enter-from-class="opacity-0 -translate-y-2"
+            enter-active-class="transition duration-200 ease-out"
+            leave-active-class="transition duration-200 ease-in"
+            leave-to-class="opacity-0 -translate-y-2"
+        >
+            <div
+                v-if="showViolationAlert"
+                class="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm dark:border-red-800/50 dark:bg-red-900/20"
+            >
+                <AlertTriangle class="mt-0.5 size-4 shrink-0 text-red-600 dark:text-red-400" />
+                <div class="text-red-700 dark:text-red-300">
+                    <p class="font-medium">Tab switch detected</p>
+                    <p class="text-xs mt-0.5">
+                        Violation {{ tabViolations }} recorded. Please stay on this page for the duration of the quiz.
+                        <template v-if="props.attempt.quiz.tab_violation_action === 'auto_submit'">
+                            {{ props.attempt.quiz.tab_violation_limit - tabViolations }} more will auto-submit your answers.
+                        </template>
+                    </p>
+                </div>
+            </div>
+        </Transition>
+
         <div class="flex flex-col gap-2">
             <div class="flex items-center justify-between">
                 <div>

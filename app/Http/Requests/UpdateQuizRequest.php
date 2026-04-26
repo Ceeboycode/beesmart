@@ -42,6 +42,11 @@ class UpdateQuizRequest extends FormRequest
             ],
             'max_attempts' => ['nullable', 'integer', 'min:1', 'max:100'],
             'question_count' => ['nullable', 'integer', 'min:1', 'max:60'],
+            'shuffle_questions' => ['nullable', 'boolean'],
+            'shuffle_choices' => ['nullable', 'boolean'],
+            'tab_monitoring_enabled' => ['nullable', 'boolean'],
+            'tab_violation_action' => ['nullable', Rule::in(['warn', 'auto_submit'])],
+            'tab_violation_limit' => ['nullable', 'integer', 'min:1', 'max:10'],
 
             'questions' => ['nullable', 'array'],
             'questions.*.id' => ['nullable', 'integer', Rule::exists('questions', 'id')->where('quiz_id', $quizId)],

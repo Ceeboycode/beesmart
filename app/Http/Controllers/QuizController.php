@@ -67,6 +67,11 @@ class QuizController extends Controller
                     : $this->codeGenerator->generate(),
                 'max_attempts' => $data['max_attempts'] ?? null,
                 'question_count' => $data['question_count'] ?? null,
+                'shuffle_questions' => $data['shuffle_questions'] ?? false,
+                'shuffle_choices' => $data['shuffle_choices'] ?? false,
+                'tab_monitoring_enabled' => $data['tab_monitoring_enabled'] ?? false,
+                'tab_violation_action' => $data['tab_violation_action'] ?? 'warn',
+                'tab_violation_limit' => $data['tab_violation_limit'] ?? 3,
                 'created_by' => $request->user()->id,
             ]);
 
@@ -133,6 +138,11 @@ class QuizController extends Controller
                     : $quiz->quiz_code,
                 'max_attempts' => array_key_exists('max_attempts', $data) ? $data['max_attempts'] : $quiz->max_attempts,
                 'question_count' => array_key_exists('question_count', $data) ? $data['question_count'] : $quiz->question_count,
+                'shuffle_questions' => $data['shuffle_questions'] ?? $quiz->shuffle_questions,
+                'shuffle_choices' => $data['shuffle_choices'] ?? $quiz->shuffle_choices,
+                'tab_monitoring_enabled' => $data['tab_monitoring_enabled'] ?? $quiz->tab_monitoring_enabled,
+                'tab_violation_action' => $data['tab_violation_action'] ?? $quiz->tab_violation_action,
+                'tab_violation_limit' => $data['tab_violation_limit'] ?? $quiz->tab_violation_limit,
             ]);
 
             if (array_key_exists('questions', $data)) {

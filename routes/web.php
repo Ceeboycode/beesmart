@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ProgressController;
 use App\Http\Controllers\QuizAttemptController;
 use App\Http\Controllers\QuizController;
 use Illuminate\Support\Facades\Route;
@@ -12,6 +13,7 @@ Route::inertia('/', 'Welcome', [
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
+    Route::get('progress', ProgressController::class)->name('progress');
 
     Route::resource('quizzes', QuizController::class);
     Route::post('quizzes/{quiz}/regenerate-code', [QuizController::class, 'regenerateCode'])
@@ -26,6 +28,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('quizzes/{quiz}/attempts', [QuizAttemptController::class, 'start'])->name('attempts.start');
     Route::get('attempts/{attempt}', [QuizAttemptController::class, 'show'])->name('attempts.show');
     Route::post('attempts/{attempt}/submit', [QuizAttemptController::class, 'submit'])->name('attempts.submit');
+    Route::post('attempts/{attempt}/violation', [QuizAttemptController::class, 'recordViolation'])->name('attempts.violation');
     Route::get('attempts/{attempt}/results', [QuizAttemptController::class, 'results'])->name('attempts.results');
 });
 

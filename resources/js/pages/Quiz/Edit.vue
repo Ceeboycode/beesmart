@@ -15,6 +15,11 @@ const props = defineProps<{
         quiz_code: string;
         max_attempts: number | null;
         question_count: number | null;
+        shuffle_questions: boolean;
+        shuffle_choices: boolean;
+        tab_monitoring_enabled: boolean;
+        tab_violation_action: 'warn' | 'auto_submit';
+        tab_violation_limit: number;
         status: 'active' | 'inactive';
         source: 'manual' | 'ai';
         source_file: string | null;

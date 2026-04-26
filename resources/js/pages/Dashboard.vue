@@ -6,6 +6,7 @@ import {
     ClipboardList,
     LogIn,
     Plus,
+    TrendingUp,
     Zap,
 } from 'lucide-vue-next';
 import Heading from '@/components/Heading.vue';
@@ -13,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { join as attemptsJoin } from '@/routes/attempts';
-import { dashboard } from '@/routes';
+import { dashboard, progress as progressRoute } from '@/routes';
 import {
     create as quizzesCreate,
     edit as quizzesEdit,
@@ -251,9 +252,9 @@ const attemptStatusLabel = (status: RecentAttempt['status']): string => {
                 <CardHeader class="flex flex-row items-center justify-between gap-2 pb-3">
                     <CardTitle class="text-base">My recent attempts</CardTitle>
                     <Button variant="ghost" size="sm" class="gap-1 text-xs" as-child>
-                        <Link :href="quizzesIndex()">
-                            View all
-                            <ChevronRight class="size-3.5" />
+                        <Link :href="progressRoute()">
+                            <TrendingUp class="size-3.5" />
+                            My progress
                         </Link>
                     </Button>
                 </CardHeader>

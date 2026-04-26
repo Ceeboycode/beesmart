@@ -12,7 +12,9 @@ class QuizAttempt extends Model
     use HasFactory;
 
     public const STATUS_IN_PROGRESS = 'in_progress';
+
     public const STATUS_SUBMITTED = 'submitted';
+
     public const STATUS_GRADED = 'graded';
 
     protected $fillable = [
@@ -22,6 +24,9 @@ class QuizAttempt extends Model
         'total_score',
         'ai_feedback',
         'status',
+        'question_order',
+        'choice_orders',
+        'tab_violations',
         'started_at',
         'submitted_at',
     ];
@@ -31,6 +36,9 @@ class QuizAttempt extends Model
         return [
             'attempt_number' => 'integer',
             'total_score' => 'integer',
+            'tab_violations' => 'integer',
+            'question_order' => 'array',
+            'choice_orders' => 'array',
             'started_at' => 'datetime',
             'submitted_at' => 'datetime',
         ];

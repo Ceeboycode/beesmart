@@ -12,9 +12,11 @@ class Quiz extends Model
     use HasFactory;
 
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_INACTIVE = 'inactive';
 
     public const SOURCE_MANUAL = 'manual';
+
     public const SOURCE_AI = 'ai';
 
     protected $fillable = [
@@ -23,6 +25,11 @@ class Quiz extends Model
         'quiz_code',
         'max_attempts',
         'question_count',
+        'shuffle_questions',
+        'shuffle_choices',
+        'tab_monitoring_enabled',
+        'tab_violation_action',
+        'tab_violation_limit',
         'status',
         'source',
         'source_file',
@@ -34,6 +41,10 @@ class Quiz extends Model
         return [
             'max_attempts' => 'integer',
             'question_count' => 'integer',
+            'shuffle_questions' => 'boolean',
+            'shuffle_choices' => 'boolean',
+            'tab_monitoring_enabled' => 'boolean',
+            'tab_violation_limit' => 'integer',
         ];
     }
 

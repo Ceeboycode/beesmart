@@ -5,8 +5,11 @@ import {
     CheckCircle2,
     ChevronLeft,
     ChevronRight,
+    Eye,
     GripVertical,
+    MonitorX,
     Plus,
+    Shuffle,
     Trash2,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
@@ -59,6 +62,11 @@ type QuizFormData = {
     quiz_code: string;
     max_attempts: number | null;
     question_count: number | null;
+    shuffle_questions: boolean;
+    shuffle_choices: boolean;
+    tab_monitoring_enabled: boolean;
+    tab_violation_action: 'warn' | 'auto_submit';
+    tab_violation_limit: number;
     questions: QuestionInput[];
 };
 
@@ -70,6 +78,11 @@ const props = defineProps<{
         quiz_code: string;
         max_attempts: number | null;
         question_count: number | null;
+        shuffle_questions: boolean;
+        shuffle_choices: boolean;
+        tab_monitoring_enabled: boolean;
+        tab_violation_action: 'warn' | 'auto_submit';
+        tab_violation_limit: number;
         status: 'active' | 'inactive';
         questions?: Array<{
             id: number;
@@ -140,6 +153,11 @@ const form = useForm<QuizFormData>({
     quiz_code: props.quiz?.quiz_code ?? '',
     max_attempts: props.quiz?.max_attempts ?? null,
     question_count: props.quiz?.question_count ?? DEFAULT_QUESTION_COUNT,
+    shuffle_questions: props.quiz?.shuffle_questions ?? false,
+    shuffle_choices: props.quiz?.shuffle_choices ?? false,
+    tab_monitoring_enabled: props.quiz?.tab_monitoring_enabled ?? false,
+    tab_violation_action: props.quiz?.tab_violation_action ?? 'warn',
+    tab_violation_limit: props.quiz?.tab_violation_limit ?? 3,
     questions:
         initialQuestions.length > 0
             ? initialQuestions
@@ -370,6 +388,11 @@ const submit = (): void => {
                     'status',
                     'max_attempts',
                     'question_count',
+                    'shuffle_questions',
+                    'shuffle_choices',
+                    'tab_monitoring_enabled',
+                    'tab_violation_action',
+                    'tab_violation_limit',
                 ].includes(k),
             );
             if (hasStep1Errors) {
@@ -669,6 +692,130 @@ const questionError = (index: number, field: string): string | undefined => {
                             }}
                         </p>
                         <InputError :message="form.errors.max_attempts" />
+                    </div>
+                </CardContent>
+            </Card>
+
+            <!-- Quiz behaviour -->
+            <Card>
+                <CardHeader>
+                    <CardTitle>Quiz behaviour</CardTitle>
+                    <CardDescription>Control how questions are presented and how the quiz session is monitored.</CardDescription>
+                </CardHeader>
+                <CardContent class="grid gap-6">
+                    <!-- Shuffle questions -->
+                    <div class="grid gap-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                <Shuffle class="size-4 text-muted-foreground" />
+                                <Label>Shuffle question order</Label>
+                            </div>
+                            <Button
+                                type="button"
+                                :variant="form.shuffle_questions ? 'default' : 'outline'"
+                                size="sm"
+                                class="h-7 gap-1.5 text-xs"
+                                @click="form.shuffle_questions = !form.shuffle_questions"
+                            >
+                                <span class="size-1.5 rounded-full" :class="form.shuffle_questions ? 'bg-primary-foreground' : 'bg-muted-foreground/50'" />
+                                {{ form.shuffle_questions ? 'Enabled' : 'Disabled' }}
+                            </Button>
+                        </div>
+                        <p class="text-xs text-muted-foreground">Each taker sees questions in a different random order.</p>
+                    </div>
+
+                    <!-- Shuffle choices -->
+                    <div class="grid gap-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                <Shuffle class="size-4 text-muted-foreground" />
+                                <Label>Shuffle answer choices</Label>
+                            </div>
+                            <Button
+                                type="button"
+                                :variant="form.shuffle_choices ? 'default' : 'outline'"
+                                size="sm"
+                                class="h-7 gap-1.5 text-xs"
+                                @click="form.shuffle_choices = !form.shuffle_choices"
+                            >
+                                <span class="size-1.5 rounded-full" :class="form.shuffle_choices ? 'bg-primary-foreground' : 'bg-muted-foreground/50'" />
+                                {{ form.shuffle_choices ? 'Enabled' : 'Disabled' }}
+                            </Button>
+                        </div>
+                        <p class="text-xs text-muted-foreground">Answer choices for multiple-choice and true/false questions are randomised per attempt.</p>
+                    </div>
+
+                    <div class="h-px bg-border" />
+
+                    <!-- Tab monitoring -->
+                    <div class="grid gap-3">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                <Eye class="size-4 text-muted-foreground" />
+                                <Label>Tab / window monitoring</Label>
+                            </div>
+                            <Button
+                                type="button"
+                                :variant="form.tab_monitoring_enabled ? 'default' : 'outline'"
+                                size="sm"
+                                class="h-7 gap-1.5 text-xs"
+                                @click="form.tab_monitoring_enabled = !form.tab_monitoring_enabled"
+                            >
+                                <span class="size-1.5 rounded-full" :class="form.tab_monitoring_enabled ? 'bg-primary-foreground' : 'bg-muted-foreground/50'" />
+                                {{ form.tab_monitoring_enabled ? 'Enabled' : 'Disabled' }}
+                            </Button>
+                        </div>
+                        <p class="text-xs text-muted-foreground">Detects when a taker switches tabs or leaves the browser window during the quiz.</p>
+
+                        <template v-if="form.tab_monitoring_enabled">
+                            <div class="ml-6 grid gap-4 rounded-lg border bg-muted/30 p-4">
+                                <div class="grid gap-2">
+                                    <Label>On violation</Label>
+                                    <div class="flex gap-2">
+                                        <Button
+                                            type="button"
+                                            :variant="form.tab_violation_action === 'warn' ? 'default' : 'outline'"
+                                            size="sm"
+                                            @click="form.tab_violation_action = 'warn'"
+                                        >
+                                            Warn the user
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            :variant="form.tab_violation_action === 'auto_submit' ? 'default' : 'outline'"
+                                            size="sm"
+                                            @click="form.tab_violation_action = 'auto_submit'"
+                                        >
+                                            <MonitorX class="size-4" />
+                                            Auto-submit
+                                        </Button>
+                                    </div>
+                                    <p class="text-xs text-muted-foreground">
+                                        <template v-if="form.tab_violation_action === 'warn'">
+                                            Show a warning on each tab switch. No automatic action.
+                                        </template>
+                                        <template v-else>
+                                            Automatically submit the quiz after the set number of violations.
+                                        </template>
+                                    </p>
+                                </div>
+
+                                <div v-if="form.tab_violation_action === 'auto_submit'" class="grid gap-2">
+                                    <Label>Violations before auto-submit</Label>
+                                    <div class="flex items-center gap-2">
+                                        <Input
+                                            v-model.number="form.tab_violation_limit"
+                                            type="number"
+                                            min="1"
+                                            max="10"
+                                            class="w-20"
+                                        />
+                                        <span class="text-sm text-muted-foreground">tab switches</span>
+                                    </div>
+                                    <InputError :message="form.errors.tab_violation_limit" />
+                                </div>
+                            </div>
+                        </template>
                     </div>
                 </CardContent>
             </Card>
@@ -1067,6 +1214,28 @@ const questionError = (index: number, field: string): string | undefined => {
                             <p class="text-sm text-muted-foreground">
                                 {{ form.description }}
                             </p>
+                        </div>
+                    </div>
+
+                    <div class="h-px bg-border" />
+
+                    <!-- Behaviour summary -->
+                    <div class="flex flex-wrap gap-2">
+                        <div class="flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs" :class="form.shuffle_questions ? 'border-primary/30 bg-primary/5 text-primary' : 'text-muted-foreground'">
+                            <Shuffle class="size-3" />
+                            Shuffle questions: {{ form.shuffle_questions ? 'On' : 'Off' }}
+                        </div>
+                        <div class="flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs" :class="form.shuffle_choices ? 'border-primary/30 bg-primary/5 text-primary' : 'text-muted-foreground'">
+                            <Shuffle class="size-3" />
+                            Shuffle choices: {{ form.shuffle_choices ? 'On' : 'Off' }}
+                        </div>
+                        <div class="flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs" :class="form.tab_monitoring_enabled ? 'border-amber-400/50 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' : 'text-muted-foreground'">
+                            <Eye class="size-3" />
+                            Tab monitoring:
+                            <template v-if="form.tab_monitoring_enabled">
+                                {{ form.tab_violation_action === 'auto_submit' ? `Auto-submit after ${form.tab_violation_limit}` : 'Warn' }}
+                            </template>
+                            <template v-else>Off</template>
                         </div>
                     </div>
 

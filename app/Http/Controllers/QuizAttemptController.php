@@ -6,6 +6,7 @@ use App\Models\Answer;
 use App\Models\Question;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -132,11 +133,37 @@ class QuizAttemptController extends Controller
             ->where('user_id', $user->id)
             ->max('attempt_number');
 
+        $questionOrder = null;
+        $choiceOrders = null;
+
+        if ($quiz->shuffle_questions || $quiz->shuffle_choices) {
+            $questions = $quiz->questions()->with('choices')->orderBy('order')->orderBy('id')->get();
+
+            if ($quiz->shuffle_questions) {
+                $ids = $questions->pluck('id')->toArray();
+                shuffle($ids);
+                $questionOrder = $ids;
+            }
+
+            if ($quiz->shuffle_choices) {
+                $choiceOrders = [];
+                foreach ($questions as $question) {
+                    if ($question->type !== 'short_answer') {
+                        $ids = $question->choices->pluck('id')->toArray();
+                        shuffle($ids);
+                        $choiceOrders[(string) $question->id] = $ids;
+                    }
+                }
+            }
+        }
+
         $attempt = QuizAttempt::create([
             'quiz_id' => $quiz->id,
             'user_id' => $user->id,
             'attempt_number' => ($nextNumber ?? 0) + 1,
             'status' => QuizAttempt::STATUS_IN_PROGRESS,
+            'question_order' => $questionOrder,
+            'choice_orders' => $choiceOrders,
             'started_at' => now(),
         ]);
 
@@ -152,15 +179,33 @@ class QuizAttemptController extends Controller
         }
 
         $attempt->load([
-            'quiz:id,title,description,quiz_code',
+            'quiz:id,title,description,quiz_code,tab_monitoring_enabled,tab_violation_action,tab_violation_limit',
             'quiz.questions' => fn ($q) => $q->orderBy('order')->orderBy('id'),
             'quiz.questions.choices',
         ]);
 
-        $questions = $attempt->quiz->questions->map(function ($question) {
+        $questionOrder = $attempt->question_order;
+        $choiceOrders = $attempt->choice_orders ?? [];
+
+        $questions = $attempt->quiz->questions;
+
+        if ($questionOrder) {
+            $orderMap = array_flip($questionOrder);
+            $questions = $questions->sortBy(fn ($q) => $orderMap[$q->id] ?? PHP_INT_MAX)->values();
+        }
+
+        $questions = $questions->map(function ($question) use ($choiceOrders) {
             $correctCount = $question->type !== 'short_answer'
                 ? $question->choices->where('is_correct', true)->count()
                 : 0;
+
+            $choices = $question->choices;
+            $questionChoiceOrder = $choiceOrders[(string) $question->id] ?? null;
+
+            if ($questionChoiceOrder) {
+                $choiceOrderMap = array_flip($questionChoiceOrder);
+                $choices = $choices->sortBy(fn ($c) => $choiceOrderMap[$c->id] ?? PHP_INT_MAX)->values();
+            }
 
             return [
                 'id' => $question->id,
@@ -168,7 +213,7 @@ class QuizAttemptController extends Controller
                 'type' => $question->type,
                 'points' => $question->points,
                 'correct_count' => $correctCount,
-                'choices' => $question->choices->map(fn ($c) => [
+                'choices' => $choices->map(fn ($c) => [
                     'id' => $c->id,
                     'choice_text' => $c->choice_text,
                 ])->values(),
@@ -178,14 +223,38 @@ class QuizAttemptController extends Controller
         return Inertia::render('Attempt/Take', [
             'attempt' => [
                 'id' => $attempt->id,
+                'tab_violations' => $attempt->tab_violations,
                 'quiz' => [
                     'id' => $attempt->quiz->id,
                     'title' => $attempt->quiz->title,
                     'description' => $attempt->quiz->description,
                     'quiz_code' => $attempt->quiz->quiz_code,
+                    'tab_monitoring_enabled' => $attempt->quiz->tab_monitoring_enabled,
+                    'tab_violation_action' => $attempt->quiz->tab_violation_action,
+                    'tab_violation_limit' => $attempt->quiz->tab_violation_limit,
                     'questions' => $questions,
                 ],
             ],
+        ]);
+    }
+
+    public function recordViolation(Request $request, QuizAttempt $attempt): JsonResponse
+    {
+        abort_unless($attempt->user_id === $request->user()->id, 403);
+        abort_unless($attempt->status === QuizAttempt::STATUS_IN_PROGRESS, 409);
+
+        $attempt->increment('tab_violations');
+        $attempt->refresh();
+
+        $quiz = $attempt->quiz;
+        $shouldAutoSubmit = $quiz->tab_violation_action === 'auto_submit'
+            && $attempt->tab_violations >= $quiz->tab_violation_limit;
+
+        return response()->json([
+            'violations' => $attempt->tab_violations,
+            'limit' => $quiz->tab_violation_limit,
+            'action' => $quiz->tab_violation_action,
+            'should_auto_submit' => $shouldAutoSubmit,
         ]);
     }
 
