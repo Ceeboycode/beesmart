@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreQuizRequest;
 use App\Http\Requests\UpdateQuizRequest;
+use App\Models\Category;
 use App\Models\Choice;
 use App\Models\Question;
 use App\Models\Quiz;
@@ -24,15 +25,15 @@ class QuizController extends Controller
 
         $quizzes = Quiz::query()
             ->where('created_by', $user->id)
-            ->with('creator:id,name')
+            ->with(['creator:id,name', 'category:id,name'])
             ->withCount(['questions', 'attempts'])
-            ->latest()
+            ->orderByRaw('sort_order IS NULL, sort_order, created_at DESC')
             ->get();
 
         $joinedQuizzes = Quiz::query()
             ->whereHas('attempts', fn ($q) => $q->where('user_id', $user->id))
             ->where(fn ($q) => $q->whereNull('created_by')->orWhere('created_by', '!=', $user->id))
-            ->with('creator:id,name')
+            ->with(['creator:id,name', 'category:id,name'])
             ->withCount([
                 'questions',
                 'attempts as my_attempts_count' => fn ($q) => $q->where('user_id', $user->id),
@@ -40,9 +41,22 @@ class QuizController extends Controller
             ->latest()
             ->get();
 
+        $categories = Category::where('created_by', $user->id)
+            ->withCount('quizzes')
+            ->orderBy('name')
+            ->get(['id', 'name', 'icon', 'description'])
+            ->map(fn ($c) => [
+                'id' => $c->id,
+                'name' => $c->name,
+                'icon' => $c->icon,
+                'description' => $c->description,
+                'quiz_count' => $c->quizzes_count,
+            ]);
+
         return Inertia::render('Quiz/Index', [
             'quizzes' => $quizzes,
             'joinedQuizzes' => $joinedQuizzes,
+            'categories' => $categories,
         ]);
     }
 
@@ -56,9 +70,12 @@ class QuizController extends Controller
         $data = $request->validated();
 
         $quiz = DB::transaction(function () use ($data, $request): Quiz {
+            $categoryId = $this->resolveCategory($data['category_name'] ?? null, $request->user()->id);
+
             $quiz = Quiz::create([
                 'title' => $data['title'],
                 'description' => $data['description'] ?? null,
+                'category_id' => $categoryId,
                 'status' => $data['status'] ?? Quiz::STATUS_INACTIVE,
                 'source' => $data['source'] ?? Quiz::SOURCE_MANUAL,
                 'source_file' => $data['source_file'] ?? null,
@@ -126,10 +143,15 @@ class QuizController extends Controller
     {
         $data = $request->validated();
 
-        DB::transaction(function () use ($quiz, $data) {
+        DB::transaction(function () use ($quiz, $data, $request) {
+            $categoryId = array_key_exists('category_name', $data)
+                ? $this->resolveCategory($data['category_name'] ?? null, $request->user()->id)
+                : $quiz->category_id;
+
             $quiz->update([
                 'title' => $data['title'],
                 'description' => $data['description'] ?? null,
+                'category_id' => $categoryId,
                 'status' => $data['status'] ?? $quiz->status,
                 'source' => $data['source'] ?? $quiz->source,
                 'source_file' => $data['source_file'] ?? null,
@@ -195,6 +217,36 @@ class QuizController extends Controller
         $quiz->update(['quiz_code' => $this->codeGenerator->generate()]);
 
         return back()->with('success', "New code: {$quiz->quiz_code}");
+    }
+
+    public function assignCategory(Request $request, Quiz $quiz): RedirectResponse
+    {
+        abort_unless($quiz->created_by === $request->user()->id, 403);
+
+        $data = $request->validate([
+            'category_id' => ['nullable', 'integer', 'exists:categories,id'],
+        ]);
+
+        $quiz->update([
+            'category_id' => $data['category_id'] ?? null,
+            'sort_order' => null,
+        ]);
+
+        return back();
+    }
+
+    private function resolveCategory(?string $name, int $userId): ?int
+    {
+        if ($name === null || trim($name) === '') {
+            return null;
+        }
+
+        $category = Category::firstOrCreate(
+            ['name' => trim($name), 'created_by' => $userId],
+            ['description' => null]
+        );
+
+        return $category->id;
     }
 
     /**

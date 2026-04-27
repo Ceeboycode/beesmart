@@ -4,6 +4,8 @@ import Heading from '@/components/Heading.vue';
 import Builder from '@/pages/Quiz/Builder.vue';
 import { index as quizzesIndex, store as quizzesStore } from '@/routes/quizzes';
 
+defineProps<{ categories: string[] }>();
+
 defineOptions({
     layout: {
         breadcrumbs: [
@@ -24,6 +26,7 @@ defineOptions({
         />
 
         <Builder
+            :categories="categories"
             :submit-url="quizzesStore().url"
             submit-method="post"
             submit-label="Create quiz"

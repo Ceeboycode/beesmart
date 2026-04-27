@@ -35,7 +35,14 @@ const props = defineProps<{
     quiz?: {
         id: number;
         title?: string;
+        description?: string | null;
         questions_count?: number;
+        max_attempts?: number | null;
+        shuffle_questions?: boolean;
+        shuffle_choices?: boolean;
+        tab_monitoring_enabled?: boolean;
+        tab_violation_action?: 'warn' | 'auto_submit';
+        tab_violation_limit?: number;
     } | null;
     validatedCode?: string | null;
 }>();

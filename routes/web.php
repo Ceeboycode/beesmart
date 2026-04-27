@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProgressController;
 use App\Http\Controllers\QuizAttemptController;
@@ -20,6 +21,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('quizzes.regenerate-code');
     Route::patch('quizzes/{quiz}/toggle-status', [QuizController::class, 'toggleStatus'])
         ->name('quizzes.toggle-status');
+    Route::patch('quizzes/{quiz}/assign-category', [QuizController::class, 'assignCategory'])
+        ->name('quizzes.assign-category');
+
+    Route::post('categories', [CategoryController::class, 'store'])->name('categories.store');
+    Route::put('categories/{category}', [CategoryController::class, 'update'])->name('categories.update');
+    Route::delete('categories/{category}', [CategoryController::class, 'destroy'])->name('categories.destroy');
+    Route::post('categories/{category}/reorder', [CategoryController::class, 'reorder'])->name('categories.reorder');
 
     Route::get('quizzes/{quiz}/attempts', [QuizAttemptController::class, 'indexForQuiz'])->name('quizzes.attempts');
 

@@ -8,10 +8,12 @@ import { index as quizzesIndex, update as quizzesUpdate } from '@/routes/quizzes
 type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer';
 
 const props = defineProps<{
+    categories: string[];
     quiz: {
         id: number;
         title: string;
         description: string | null;
+        category: { id: number; name: string } | null;
         quiz_code: string;
         max_attempts: number | null;
         question_count: number | null;
@@ -53,6 +55,7 @@ defineOptions({
         <Heading title="Edit quiz" description="Update your quiz step-by-step. Changes are saved as a new version." />
 
         <Builder
+            :categories="props.categories"
             :quiz="props.quiz"
             :submit-url="quizzesUpdate.url(props.quiz.id)"
             submit-method="put"

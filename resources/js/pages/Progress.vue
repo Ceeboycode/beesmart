@@ -6,6 +6,7 @@ import {
     ChevronDown,
     ChevronUp,
     ExternalLink,
+    FolderOpen,
     Info,
     Minus,
     Star,
@@ -25,6 +26,13 @@ import { progress as progressRoute } from '@/routes';
 import { results as attemptResults } from '@/routes/attempts';
 
 type TypeStat = { total: number; correct: number; pct: number };
+type CategoryStat = {
+    category: { id: number; name: string } | null;
+    quiz_count: number;
+    attempt_count: number;
+    avg_pct: number;
+    best_pct: number;
+};
 type AttemptHistoryItem = {
     id: number;
     number: number;
@@ -52,6 +60,7 @@ type Suggestion = {
 const props = defineProps<{
     stats: { total_attempts: number; quizzes_taken: number; avg_pct: number; best_pct: number };
     typeStats: Record<string, TypeStat>;
+    categoryStats: CategoryStat[];
     quizHistory: QuizHistoryItem[];
     suggestions: Suggestion[];
 }>();
@@ -276,6 +285,53 @@ const typeChartSegments = computed<DonutSegment[]>(() =>
                 </div>
             </div>
         </div>
+
+        <!-- Progress by subject -->
+        <Card v-if="categoryStats.length > 0">
+            <CardHeader>
+                <CardTitle class="text-base">Progress by subject</CardTitle>
+            </CardHeader>
+            <CardContent class="flex flex-col gap-3">
+                <div
+                    v-for="stat in categoryStats"
+                    :key="stat.category?.id ?? 0"
+                    class="flex items-center gap-4 rounded-lg border bg-muted/20 px-4 py-3"
+                >
+                    <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <FolderOpen class="size-4" />
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-sm font-medium">{{ stat.category?.name ?? 'Uncategorised' }}</p>
+                        <p class="text-xs text-muted-foreground">
+                            {{ stat.quiz_count }} quiz{{ stat.quiz_count === 1 ? '' : 'zes' }} · {{ stat.attempt_count }} attempt{{ stat.attempt_count === 1 ? '' : 's' }}
+                        </p>
+                    </div>
+                    <div class="shrink-0 text-right">
+                        <div class="flex items-center gap-3">
+                            <div class="hidden flex-col items-end sm:flex">
+                                <span class="text-xs text-muted-foreground">Avg</span>
+                                <span class="text-sm font-semibold" :class="stat.avg_pct >= 75 ? 'text-emerald-600' : stat.avg_pct >= 50 ? 'text-amber-600' : 'text-rose-600'">
+                                    {{ stat.avg_pct }}%
+                                </span>
+                            </div>
+                            <div class="flex flex-col items-end">
+                                <span class="text-xs text-muted-foreground">Best</span>
+                                <span class="text-sm font-semibold text-emerald-600">{{ stat.best_pct }}%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hidden w-24 sm:block">
+                        <div class="h-2 overflow-hidden rounded-full bg-muted">
+                            <div
+                                class="h-full rounded-full transition-all"
+                                :class="barClass(stat.avg_pct)"
+                                :style="{ width: `${stat.avg_pct}%` }"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
 
         <!-- Quiz history -->
         <Card>

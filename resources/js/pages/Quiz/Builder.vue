@@ -58,6 +58,7 @@ type QuestionInput = {
 type QuizFormData = {
     title: string;
     description: string;
+
     status: 'active' | 'inactive';
     quiz_code: string;
     max_attempts: number | null;
@@ -71,10 +72,12 @@ type QuizFormData = {
 };
 
 const props = defineProps<{
+
     quiz?: {
         id: number;
         title: string;
         description: string | null;
+        category?: { id: number; name: string } | null;
         quiz_code: string;
         max_attempts: number | null;
         question_count: number | null;
@@ -149,6 +152,7 @@ const initialQuestions: QuestionInput[] = (props.quiz?.questions ?? []).map(
 const form = useForm<QuizFormData>({
     title: props.quiz?.title ?? '',
     description: props.quiz?.description ?? '',
+
     status: props.quiz?.status ?? 'active',
     quiz_code: props.quiz?.quiz_code ?? '',
     max_attempts: props.quiz?.max_attempts ?? null,
@@ -205,6 +209,7 @@ const totalPoints = computed(() =>
 
 const hasCorrectAnswers = computed(() =>
     form.questions.every((q) => {
+        if (!q.question_text.trim()) return true;
         if (q.type === 'short_answer') {
             return q.correct_answer.some((a) => a.trim().length > 0);
         }
@@ -216,14 +221,27 @@ const questionsFilledIn = computed(
     () => form.questions.filter((q) => q.question_text.trim() !== '').length,
 );
 
+const questionsWithoutAnswers = computed(() =>
+    form.questions.reduce<number[]>((acc, q, i) => {
+        if (!q.question_text.trim()) return acc;
+        const hasAnswer =
+            q.type === 'short_answer'
+                ? q.correct_answer.some((a) => a.trim().length > 0)
+                : q.choices.some((c) => c.is_correct);
+        if (!hasAnswer) acc.push(i);
+        return acc;
+    }, []),
+);
+
+const cannotProceed = computed(() => questionsWithoutAnswers.value.length > 0);
+
 // Question operations
 const toggleCorrect = (question: QuestionInput, choiceIndex: number): void => {
     if (question.type === 'true_false') {
-        const alreadyCorrect = question.choices[choiceIndex].is_correct;
         question.choices.forEach((c) => {
             c.is_correct = false;
         });
-        question.choices[choiceIndex].is_correct = !alreadyCorrect;
+        question.choices[choiceIndex].is_correct = true;
         return;
     }
     const willBeCorrect = !question.choices[choiceIndex].is_correct;
@@ -385,6 +403,7 @@ const submit = (): void => {
                 [
                     'title',
                     'description',
+
                     'status',
                     'max_attempts',
                     'question_count',
@@ -860,6 +879,7 @@ const questionError = (index: number, field: string): string | undefined => {
                         v-for="(question, qIndex) in form.questions"
                         :key="qIndex"
                         class="rounded-xl border bg-card p-4 shadow-sm"
+                        :class="questionsWithoutAnswers.includes(qIndex) ? 'border-destructive/50' : ''"
                     >
                         <div
                             class="mb-3 flex items-center justify-between gap-3"
@@ -869,6 +889,9 @@ const questionError = (index: number, field: string): string | undefined => {
                             >
                                 <GripVertical class="size-4" />
                                 Question {{ qIndex + 1 }}
+                                <Badge v-if="questionsWithoutAnswers.includes(qIndex)" variant="destructive" class="text-xs">
+                                    No correct answer
+                                </Badge>
                             </div>
                             <Button
                                 type="button"
@@ -945,95 +968,88 @@ const questionError = (index: number, field: string): string | undefined => {
                                 v-if="question.type !== 'short_answer'"
                                 class="grid gap-2"
                             >
-                                <Label>
-                                    Choices —
-                                    {{
-                                        question.type === 'true_false'
-                                            ? 'select the correct one'
-                                            : 'tick correct answers (at least one must be wrong)'
-                                    }}
-                                </Label>
-                                <div class="grid gap-2">
+                                <!-- Section header -->
+                                <div class="flex items-center justify-between gap-2">
+                                    <Label>Answer choices</Label>
+                                    <span v-if="question.type === 'multiple_choice'" class="text-xs text-muted-foreground">
+                                        {{ question.choices.filter(c => c.choice_text.trim()).length }} / {{ question.choices.length }} filled
+                                    </span>
+                                </div>
+
+                                <!-- Helper text -->
+                                <p v-if="question.type === 'multiple_choice'" class="text-xs text-muted-foreground">
+                                    Click the circle to mark a choice as correct. Need at least 1 correct and 1 wrong.
+                                    Blank choices are ignored when saving.
+                                </p>
+                                <p v-else class="text-xs text-muted-foreground">
+                                    Select which answer is correct.
+                                </p>
+
+                                <!-- Choice rows -->
+                                <div class="grid gap-1.5">
                                     <div
-                                        v-for="(
-                                            choice, cIndex
-                                        ) in question.choices"
+                                        v-for="(choice, cIndex) in question.choices"
                                         :key="cIndex"
-                                        class="flex items-center gap-2 rounded-md border bg-background p-2"
-                                        :class="
-                                            choice.is_correct
-                                                ? 'border-emerald-300 ring-2 ring-emerald-200 dark:border-emerald-700 dark:ring-emerald-900/40'
-                                                : ''
-                                        "
+                                        class="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 transition-colors"
+                                        :class="choice.is_correct
+                                            ? 'border-emerald-400 bg-emerald-50/50 dark:border-emerald-700 dark:bg-emerald-950/30'
+                                            : 'border-border'"
                                     >
+                                        <!-- Correct-answer toggle -->
                                         <button
                                             type="button"
-                                            class="flex size-8 shrink-0 items-center justify-center rounded-full border transition"
-                                            :class="
-                                                choice.is_correct
-                                                    ? 'border-emerald-500 bg-emerald-500 text-white'
-                                                    : 'border-muted text-muted-foreground hover:border-emerald-400'
-                                            "
-                                            :aria-label="
-                                                choice.is_correct
-                                                    ? 'Correct answer'
-                                                    : 'Mark as correct'
-                                            "
-                                            @click="
-                                                toggleCorrect(question, cIndex)
-                                            "
+                                            class="flex size-7 shrink-0 items-center justify-center rounded-full border-2 transition-all"
+                                            :class="choice.is_correct
+                                                ? 'border-emerald-500 bg-emerald-500 text-white'
+                                                : 'border-muted-foreground/30 text-muted-foreground hover:border-emerald-400 hover:text-emerald-500'"
+                                            :title="choice.is_correct ? 'Correct answer' : 'Mark as correct'"
+                                            @click="toggleCorrect(question, cIndex)"
                                         >
-                                            <CheckCircle2
-                                                v-if="choice.is_correct"
-                                                class="size-4"
-                                            />
-                                            <span
-                                                v-else
-                                                class="text-xs font-semibold"
-                                                >{{
-                                                    String.fromCharCode(
-                                                        65 + cIndex,
-                                                    )
-                                                }}</span
-                                            >
+                                            <CheckCircle2 v-if="choice.is_correct" class="size-3.5" />
+                                            <span v-else class="text-[10px] font-bold leading-none">{{ String.fromCharCode(65 + cIndex) }}</span>
                                         </button>
+
+                                        <!-- Text input -->
                                         <Input
                                             v-model="choice.choice_text"
-                                            :placeholder="`Option ${String.fromCharCode(65 + cIndex)}`"
-                                            :readonly="
-                                                question.type === 'true_false'
-                                            "
-                                            class="flex-1"
+                                            :placeholder="question.type === 'true_false' ? '' : `Choice ${String.fromCharCode(65 + cIndex)} — leave blank to skip`"
+                                            :readonly="question.type === 'true_false'"
+                                            class="flex-1 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                                            :class="choice.is_correct ? 'font-medium text-emerald-700 dark:text-emerald-400' : ''"
                                         />
+
+                                        <!-- Correct label -->
+                                        <span v-if="choice.is_correct" class="shrink-0 text-xs font-medium text-emerald-600 dark:text-emerald-400">Correct</span>
+
+                                        <!-- Remove button -->
                                         <Button
-                                            v-if="
-                                                question.type ===
-                                                    'multiple_choice' &&
-                                                question.choices.length > 2
-                                            "
+                                            v-if="question.type === 'multiple_choice' && question.choices.length > 2"
                                             type="button"
                                             variant="ghost"
                                             size="icon"
-                                            class="text-muted-foreground"
-                                            @click="
-                                                removeChoice(question, cIndex)
-                                            "
+                                            class="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+                                            @click="removeChoice(question, cIndex)"
                                         >
-                                            <Trash2 class="size-4" />
+                                            <Trash2 class="size-3.5" />
                                         </Button>
                                     </div>
                                 </div>
-                                <Button
-                                    v-if="question.type === 'multiple_choice'"
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    class="w-fit"
-                                    @click="addChoice(question)"
-                                >
-                                    <Plus class="size-4" />
-                                    Add choice
-                                </Button>
+
+                                <!-- Add choice + error -->
+                                <div v-if="question.type === 'multiple_choice'" class="flex items-center gap-3">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        class="w-fit"
+                                        @click="addChoice(question)"
+                                    >
+                                        <Plus class="size-4" />
+                                        Add choice
+                                    </Button>
+                                    <span class="text-xs text-muted-foreground">{{ question.choices.length }} choices total</span>
+                                </div>
+                                <InputError :message="questionError(qIndex, 'choices')" />
                             </div>
 
                             <div v-else class="grid gap-2">
@@ -1118,6 +1134,7 @@ const questionError = (index: number, field: string): string | undefined => {
                                     <Plus class="size-4" />
                                     Add accepted answer
                                 </Button>
+                                <InputError :message="questionError(qIndex, 'correct_answer')" />
                             </div>
 
                             <div class="grid gap-2">
@@ -1283,9 +1300,30 @@ const questionError = (index: number, field: string): string | undefined => {
                         </div>
                     </div>
 
-                    <!-- Warnings -->
+                    <!-- Error: missing correct answers (hard block) -->
                     <div
-                        v-if="!hasCorrectAnswers || questionsFilledIn === 0"
+                        v-if="cannotProceed"
+                        class="rounded-lg border border-destructive/40 bg-destructive/5 p-4"
+                    >
+                        <div class="flex items-start gap-3">
+                            <AlertTriangle class="mt-0.5 size-4 shrink-0 text-destructive" />
+                            <div class="space-y-1">
+                                <p class="text-sm font-medium text-destructive">
+                                    Cannot save — correct answers missing
+                                </p>
+                                <p class="text-sm text-destructive/80">
+                                    Question{{ questionsWithoutAnswers.length === 1 ? '' : 's' }}
+                                    {{ questionsWithoutAnswers.map((i) => i + 1).join(', ') }}
+                                    {{ questionsWithoutAnswers.length === 1 ? 'is' : 'are' }} missing a correct answer.
+                                    Go back and mark the correct answer for each.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Warning: no questions filled in (soft) -->
+                    <div
+                        v-else-if="questionsFilledIn === 0"
                         class="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
                     >
                         <div class="flex items-start gap-3">
@@ -1293,27 +1331,11 @@ const questionError = (index: number, field: string): string | undefined => {
                                 class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
                             />
                             <div class="space-y-1">
-                                <p
-                                    class="text-sm font-medium text-amber-800 dark:text-amber-300"
-                                >
-                                    Attention needed
+                                <p class="text-sm font-medium text-amber-800 dark:text-amber-300">
+                                    No questions filled in yet
                                 </p>
-                                <ul
-                                    class="list-inside list-disc space-y-0.5 text-sm text-amber-700 dark:text-amber-400"
-                                >
-                                    <li v-if="questionsFilledIn === 0">
-                                        No questions have been filled in yet.
-                                    </li>
-                                    <li v-else-if="!hasCorrectAnswers">
-                                        Some questions are missing correct
-                                        answers.
-                                    </li>
-                                </ul>
-                                <p
-                                    class="text-xs text-amber-600 dark:text-amber-500"
-                                >
-                                    You can still save — empty slots and
-                                    unflagged answers will be excluded.
+                                <p class="text-sm text-amber-700 dark:text-amber-400">
+                                    Go back and add at least one question before saving.
                                 </p>
                             </div>
                         </div>
@@ -1346,7 +1368,7 @@ const questionError = (index: number, field: string): string | undefined => {
                     <ChevronLeft class="size-4" />
                     Back to questions
                 </Button>
-                <Button :disabled="form.processing" @click="requestSave">
+                <Button :disabled="form.processing || cannotProceed" @click="requestSave">
                     {{ props.submitLabel }}
                 </Button>
             </div>

@@ -93,7 +93,14 @@ class QuizAttemptController extends Controller
             'quiz' => [
                 'id' => $quiz->id,
                 'title' => $quiz->title,
+                'description' => $quiz->description,
                 'questions_count' => $quiz->questions()->count(),
+                'max_attempts' => $quiz->max_attempts,
+                'shuffle_questions' => $quiz->shuffle_questions,
+                'shuffle_choices' => $quiz->shuffle_choices,
+                'tab_monitoring_enabled' => $quiz->tab_monitoring_enabled,
+                'tab_violation_action' => $quiz->tab_violation_action,
+                'tab_violation_limit' => $quiz->tab_violation_limit,
             ],
             'validatedCode' => $code,
         ]);
@@ -326,8 +333,16 @@ class QuizAttemptController extends Controller
 
         $maxScore = $attempt->quiz->questions->sum('points');
 
+        $answers = $attempt->answers->map(fn (Answer $answer) => [
+            'question_id' => $answer->question_id,
+            'answer' => $answer->answer,
+            'answer_json' => $answer->answer_json,
+            'score' => $answer->score,
+            'is_answered' => $answer->answer !== null || ! empty($answer->answer_json),
+        ])->values()->all();
+
         return Inertia::render('Attempt/Results', [
-            'attempt' => $attempt,
+            'attempt' => array_merge($attempt->toArray(), ['answers' => $answers]),
             'maxScore' => $maxScore,
         ]);
     }

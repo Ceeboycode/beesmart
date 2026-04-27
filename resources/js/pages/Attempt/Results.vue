@@ -37,6 +37,7 @@ const props = defineProps<{
             answer: string | null;
             answer_json: number[] | null;
             score: number;
+            is_answered: boolean;
         }>;
     };
     maxScore: number;
@@ -65,7 +66,7 @@ const wasSelected = (questionId: number, choiceId: number): boolean =>
 const userAnswered = (questionId: number): boolean => {
     const answer = answerByQuestion.value[questionId];
     if (!answer) return false;
-    return Boolean(answer.answer?.trim()) || (answer.answer_json?.length ?? 0) > 0;
+    return answer.is_answered;
 };
 
 const isCorrect = (question: ResultQuestion): boolean => {

@@ -20,7 +20,7 @@ class ProgressController extends Controller
         $attempts = QuizAttempt::query()
             ->where('user_id', $user->id)
             ->whereIn('status', [QuizAttempt::STATUS_SUBMITTED, QuizAttempt::STATUS_GRADED])
-            ->with('quiz:id,title')
+            ->with(['quiz:id,title,category_id', 'quiz.category:id,name'])
             ->orderBy('quiz_id')
             ->orderBy('attempt_number')
             ->get();
@@ -96,7 +96,14 @@ class ProgressController extends Controller
             ->join('questions', 'answers.question_id', '=', 'questions.id')
             ->where('quiz_attempts.user_id', $user->id)
             ->whereIn('quiz_attempts.status', [QuizAttempt::STATUS_SUBMITTED, QuizAttempt::STATUS_GRADED])
-            ->whereNotNull('answers.score')
+            ->where(function ($q) {
+                // Exclude skipped answers (no text and no selected choices)
+                $q->whereNotNull('answers.answer')
+                    ->orWhere(function ($inner) {
+                        $inner->whereNotNull('answers.answer_json')
+                            ->where('answers.answer_json', '!=', '[]');
+                    });
+            })
             ->select(
                 'questions.type',
                 DB::raw('COUNT(answers.id) as total'),
@@ -117,6 +124,8 @@ class ProgressController extends Controller
             ];
         });
 
+        $categoryStats = $this->buildCategoryStats($attempts, $maxScores);
+
         $suggestions = $this->generateSuggestions($typeStats, collect($quizHistory), $avgPct, $totalAttempts);
 
         return Inertia::render('Progress', [
@@ -127,9 +136,44 @@ class ProgressController extends Controller
                 'best_pct' => $bestPct,
             ],
             'typeStats' => $typeStats,
+            'categoryStats' => $categoryStats,
             'quizHistory' => $quizHistory,
             'suggestions' => $suggestions,
         ]);
+    }
+
+    /**
+     * @param  Collection<int, QuizAttempt>  $attempts
+     * @param  Collection<int, int>  $maxScores
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildCategoryStats(Collection $attempts, Collection $maxScores): array
+    {
+        return $attempts
+            ->groupBy(fn ($a) => $a->quiz?->category_id ?? 0)
+            ->map(function (Collection $group) use ($maxScores) {
+                $firstAttempt = $group->first();
+                $quiz = $firstAttempt->quiz;
+                $category = $quiz?->category;
+
+                $pcts = $group->map(function ($attempt) use ($maxScores) {
+                    $max = $maxScores->get($attempt->quiz_id, 0);
+
+                    return $max > 0 ? (int) round(($attempt->total_score / $max) * 100) : 0;
+                });
+
+                $quizIds = $group->pluck('quiz_id')->unique()->count();
+
+                return [
+                    'category' => $category ? ['id' => $category->id, 'name' => $category->name] : null,
+                    'quiz_count' => $quizIds,
+                    'attempt_count' => $group->count(),
+                    'avg_pct' => $pcts->isNotEmpty() ? (int) round($pcts->average()) : 0,
+                    'best_pct' => $pcts->isNotEmpty() ? (int) $pcts->max() : 0,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**

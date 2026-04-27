@@ -22,6 +22,8 @@ class Quiz extends Model
     protected $fillable = [
         'title',
         'description',
+        'category_id',
+        'sort_order',
         'quiz_code',
         'max_attempts',
         'question_count',
@@ -39,6 +41,7 @@ class Quiz extends Model
     protected function casts(): array
     {
         return [
+            'sort_order' => 'integer',
             'max_attempts' => 'integer',
             'question_count' => 'integer',
             'shuffle_questions' => 'boolean',
@@ -56,6 +59,11 @@ class Quiz extends Model
     public function attempts(): HasMany
     {
         return $this->hasMany(QuizAttempt::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class);
     }
 
     public function creator(): BelongsTo
